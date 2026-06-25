@@ -1,0 +1,49 @@
+name: Package JAR
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 26
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: '26'
+          cache: maven
+
+      - name: Build and verify
+        run: |
+          chmod +x mvnw
+          ./mvnw -B --no-transfer-progress clean verify
+
+      - name: Assemble self-executing jar
+        run: |
+          cat scripts/jar-prefix.sh target/grafana-mcp.jar > target/grafana-mcp-exec.jar
+          chmod +x target/grafana-mcp-exec.jar
+          ls -lh target/grafana-mcp-exec.jar
+
+      - name: Upload jar artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: grafana-mcp-jar
+          path: target/grafana-mcp-exec.jar
+          if-no-files-found: error
+
+      - name: Attach jar to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: target/grafana-mcp-exec.jar

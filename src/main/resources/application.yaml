@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: grafana-mcp
+  main:
+    banner-mode: "off"
+    web-application-type: none
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: true
+        type: sync
+        name: grafana-mcp
+        version: '@project.version@'
+        instructions: >-
+          Access Grafana dashboards, annotations, and Prometheus metrics.
+          Use list_datasources to find the Prometheus datasource ID, then
+          query_prometheus to fetch node_exporter time-series data for CPU,
+          memory, and IO utilization analysis within a time range.
+
+grafana:
+  token: ${GRAFANA_TOKEN}
+  base-url: ${GRAFANA_URL}
+  default-page-size: 50
+  max-page-size: 100
+
+logging:
+  level:
+    root: ERROR
+    "com.sparrowlogic.grafanamcp": WARN
+    "org.springframework.context.support.PostProcessorRegistrationDelegate": ERROR
+    "org.springframework.ai.mcp.annotation.provider.tool": ERROR

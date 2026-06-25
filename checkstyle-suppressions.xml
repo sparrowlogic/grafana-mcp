@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.1//EN"
+        "https://checkstyle.org/dtds/suppressions_1_1.dtd">
+<suppressions>
+    <!-- Spring framework requires non-final classes for proxying -->
+    <suppress checks="HideUtilityClassConstructor" files=".*Application\.java"/>
+    <suppress checks="DesignForExtension" files=".*Application\.java"/>
+
+    <!-- FinalParameters — separate cleanup project -->
+    <suppress checks="FinalParameters" files=".*\.java"/>
+
+    <!-- Test files have different conventions -->
+    <suppress checks="MagicNumber" files=".*Test\.java"/>
+    <suppress checks="MultipleStringLiterals" files=".*Test\.java"/>
+    <suppress checks="DesignForExtension" files=".*Test\.java"/>
+    <suppress checks="VisibilityModifier" files=".*Test\.java"/>
+
+    <!-- Tools have many string literals in descriptions -->
+    <suppress checks="MultipleStringLiterals" files=".*Tools\.java"/>
+    <suppress checks="ClassFanOutComplexity" files=".*Tools\.java"/>
+    <suppress checks="CyclomaticComplexity" files=".*Tools\.java"/>
+    <suppress checks="BooleanExpressionComplexity" files=".*Tools\.java"/>
+    <suppress checks="UnnecessaryParentheses" files=".*Tools\.java"/>
+    <suppress checks="MethodCount" files="NodeMetricsTools\.java"/>
+    <suppress checks="ExecutableStatementCount" files="NodeMetricsTools\.java"/>
+    <suppress checks="VariableDeclarationUsageDistance" files="NodeMetricsTools\.java"/>
+
+    <!-- Client has multiple API methods with similar URL patterns -->
+    <suppress checks="MultipleStringLiterals" files="GrafanaClient\.java"/>
+</suppressions>

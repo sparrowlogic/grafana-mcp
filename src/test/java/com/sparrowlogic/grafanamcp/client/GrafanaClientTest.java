@@ -41,7 +41,7 @@ class GrafanaClientTest {
         mockServer.expect(requestTo("https://grafana.test/api/search?type=dash-db&query=node&limit=50"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("""
-                        [{"id":1,"uid":"abc","title":"Node Exporter","url":"/d/abc","type":"dash-db","tags":["infra"],"is_starred":false}]
+                        [{"id":1,"uid":"abc","title":"Node Exporter","url":"/d/abc","type":"dash-db","tags":["infra"],"isStarred":false}]
                         """, MediaType.APPLICATION_JSON));
 
         List<Dashboard> results = client.searchDashboards("node", 0);
@@ -80,7 +80,7 @@ class GrafanaClientTest {
         mockServer.expect(requestTo("https://grafana.test/api/datasources"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("""
-                        [{"id":1,"uid":"prom1","name":"Prometheus","type":"prometheus","url":"http://prom:9090","is_default":true}]
+                        [{"id":1,"uid":"prom1","name":"Prometheus","type":"prometheus","url":"http://prom:9090","isDefault":true}]
                         """, MediaType.APPLICATION_JSON));
 
         List<Datasource> results = client.listDatasources();
@@ -95,7 +95,7 @@ class GrafanaClientTest {
         mockServer.expect(requestTo("https://grafana.test/api/annotations?from=1000&to=2000"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("""
-                        [{"id":1,"dashboard_id":5,"dashboard_uid":"abc","time":1000,"time_end":1500,"text":"deploy","tags":["deploy"]}]
+                        [{"id":1,"dashboardId":5,"dashboardUID":"abc","time":1000,"timeEnd":1500,"text":"deploy","tags":["deploy"]}]
                         """, MediaType.APPLICATION_JSON));
 
         List<Annotation> results = client.listAnnotations(1000, 2000, null, null);

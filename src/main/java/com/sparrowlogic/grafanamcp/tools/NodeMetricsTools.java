@@ -1,5 +1,6 @@
 package com.sparrowlogic.grafanamcp.tools;
 
+import com.sparrowlogic.grafanamcp.client.GrafanaApiException;
 import com.sparrowlogic.grafanamcp.client.GrafanaClient;
 import com.sparrowlogic.grafanamcp.config.GrafanaProperties;
 import java.nio.charset.StandardCharsets;
@@ -146,7 +147,7 @@ public class NodeMetricsTools {
         long endEpoch = MetricsTools.parseEpochSeconds(end);
         String resolvedStep = (step == null || step.isBlank()) ? DEFAULT_STEP : step;
         JsonNode data = this.client.queryPrometheus(datasourceId, promql, startEpoch, endEpoch, resolvedStep);
-        String exploreUrl = this.buildExploreShortUrl(promql, startEpoch, endEpoch);
+        String exploreUrl = this.buildExploreUrl(promql, startEpoch, endEpoch);
         List<Map<String, Object>> series = computeStats(data);
         return Map.of(
                 "series", series,
@@ -226,7 +227,7 @@ public class NodeMetricsTools {
         return Math.round(value * 100.0) / 100.0;
     }
 
-    private String buildExploreShortUrl(String promql, long startEpoch, long endEpoch) {
+    private String buildExploreUrl(String promql, long startEpoch, long endEpoch) {
         long startMs = startEpoch * 1000L;
         long endMs = endEpoch * 1000L;
         String json = "{\"queries\":[{\"expr\":\""
@@ -234,7 +235,11 @@ public class NodeMetricsTools {
                 + "\",\"range\":true,\"refId\":\"A\"}],"
                 + "\"range\":{\"from\":\"" + startMs + "\",\"to\":\"" + endMs + "\"}}";
         String path = "explore?orgId=1&left=" + strictEncode(json);
-        return this.client.createShortUrl(path);
+        try {
+            return this.client.createShortUrl(path);
+        } catch (GrafanaApiException e) {
+            return this.properties.baseUrl() + "/" + path;
+        }
     }
 
     private static String strictEncode(String value) {

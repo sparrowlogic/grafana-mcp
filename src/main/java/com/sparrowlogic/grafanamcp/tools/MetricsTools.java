@@ -1,5 +1,6 @@
 package com.sparrowlogic.grafanamcp.tools;
 
+import com.sparrowlogic.grafanamcp.client.GrafanaApiException;
 import com.sparrowlogic.grafanamcp.client.GrafanaClient;
 import com.sparrowlogic.grafanamcp.config.GrafanaProperties;
 import com.sparrowlogic.grafanamcp.domain.Datasource;
@@ -82,7 +83,11 @@ public class MetricsTools {
                 + "\"range\":true,\"refId\":\"A\"}],"
                 + "\"range\":{\"from\":\"" + startMs + "\",\"to\":\"" + endMs + "\"}}";
         String path = "explore?orgId=1&left=" + strictEncode(json);
-        return this.client.createShortUrl(path);
+        try {
+            return this.client.createShortUrl(path);
+        } catch (GrafanaApiException e) {
+            return this.properties.baseUrl() + "/" + path;
+        }
     }
 
     private static String strictEncode(String value) {

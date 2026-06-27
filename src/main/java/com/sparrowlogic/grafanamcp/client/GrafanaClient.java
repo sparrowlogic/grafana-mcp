@@ -111,13 +111,10 @@ public class GrafanaClient {
      */
     public JsonNode queryPrometheus(int datasourceId, String promql,
             long startEpoch, long endEpoch, String step) {
+        String resolvedStep = step == null || step.isBlank() ? "60s" : step;
         return this.rest.get()
-                .uri(b -> b.path("/api/datasources/proxy/{id}/api/v1/query_range")
-                        .queryParam("query", promql)
-                        .queryParam("start", startEpoch)
-                        .queryParam("end", endEpoch)
-                        .queryParam("step", step == null || step.isBlank() ? "60s" : step)
-                        .build(datasourceId))
+                .uri("/api/datasources/proxy/{id}/api/v1/query_range?query={query}&start={start}&end={end}&step={step}",
+                        datasourceId, promql, startEpoch, endEpoch, resolvedStep)
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, this::raise)
                 .body(JsonNode.class);

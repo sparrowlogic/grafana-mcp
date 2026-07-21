@@ -178,6 +178,15 @@
                 </executions>
             </plugin>
 
+            <!-- Dependency/plugin update reporting. Deliberately unbound to any lifecycle phase
+                 (it hits Maven Central on every invocation, which would make the build slower
+                 and non-reproducible) — run on demand via `mvn versions:display-dependency-updates`. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>versions-maven-plugin</artifactId>
+                <version>2.21.0</version>
+            </plugin>
+
             <!-- JaCoCo code coverage -->
             <plugin>
                 <groupId>org.jacoco</groupId>

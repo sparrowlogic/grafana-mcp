@@ -26,6 +26,18 @@
     <suppress checks="ExecutableStatementCount" files="NodeMetricsTools\.java"/>
     <suppress checks="VariableDeclarationUsageDistance" files="NodeMetricsTools\.java"/>
 
+    <!-- Trace analysis assembles many small result records and walks a span tree -->
+    <suppress checks="ClassDataAbstractionCoupling" files="TraceAnalyzer\.java"/>
+    <suppress checks="ClassFanOutComplexity" files="TraceAnalyzer\.java"/>
+    <suppress checks="MultipleStringLiterals" files="TraceAnalyzer\.java"/>
+    <suppress checks="ClassDataAbstractionCoupling" files=".*Tools\.java"/>
+    <suppress checks="ClassDataAbstractionCoupling" files=".*Result\.java"/>
+    <suppress checks="ClassDataAbstractionCoupling" files="ParsedTrace\.java"/>
+    <suppress checks="MultipleStringLiterals" files="ParsedTrace\.java"/>
+    <suppress checks="MultipleStringLiterals" files="TempoClient\.java"/>
+    <suppress checks="MultipleStringLiterals" files="LokiClient\.java"/>
+    <suppress checks="MultipleStringLiterals" files="DatasourceProxy\.java"/>
+
     <!-- Client has multiple API methods with similar URL patterns -->
     <suppress checks="MultipleStringLiterals" files="GrafanaClient\.java"/>
 </suppressions>

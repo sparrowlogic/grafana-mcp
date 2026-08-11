@@ -1,5 +1,6 @@
 package com.sparrowlogic.grafanamcp.config;
 
+import java.lang.reflect.RecordComponent;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -7,18 +8,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GrafanaPropertiesTest {
 
     @Test
-    void defaultValues() {
-        GrafanaProperties props = new GrafanaProperties("token", null, 0, 0);
-        assertThat(props.token()).isEqualTo("token");
+    void carriesThePageSizeLimits() {
+        GrafanaProperties props = new GrafanaProperties(25, 50);
+
+        assertThat(props.defaultPageSize()).isEqualTo(25);
+        assertThat(props.maxPageSize()).isEqualTo(50);
     }
 
     @Test
-    void allValuesSet() {
-        GrafanaProperties props = new GrafanaProperties(
-                "my-token", "https://grafana.example.com", 25, 50);
-        assertThat(props.token()).isEqualTo("my-token");
-        assertThat(props.baseUrl()).isEqualTo("https://grafana.example.com");
-        assertThat(props.defaultPageSize()).isEqualTo(25);
-        assertThat(props.maxPageSize()).isEqualTo(50);
+    void holdsNoCredentialAndNoGrafanaInstance() {
+        // Base URLs and tokens belong to EnvironmentStore's file alone. If a component reappears
+        // here, credentials are back in the shipped jar and the launch environment.
+        assertThat(GrafanaProperties.class.getRecordComponents())
+                .extracting(RecordComponent::getName)
+                .containsExactlyInAnyOrder("defaultPageSize", "maxPageSize");
     }
 }

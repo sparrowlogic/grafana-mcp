@@ -1,6 +1,7 @@
 package com.sparrowlogic.grafanamcp.tools;
 
 import com.sparrowlogic.grafanamcp.client.GrafanaClient;
+import com.sparrowlogic.grafanamcp.client.GrafanaEnvironments;
 import com.sparrowlogic.grafanamcp.domain.Annotation;
 import java.time.Instant;
 import java.util.Arrays;
@@ -17,9 +18,11 @@ import tools.jackson.databind.JsonNode;
 public class AnnotationTools {
 
     private final GrafanaClient client;
+    private final GrafanaEnvironments environments;
 
-    public AnnotationTools(GrafanaClient client) {
+    public AnnotationTools(GrafanaClient client, GrafanaEnvironments environments) {
         this.client = client;
+        this.environments = environments;
     }
 
     @Tool(name = "list_annotations",
@@ -36,11 +39,16 @@ public class AnnotationTools {
             String dashboardUid,
             @ToolParam(description = "Comma-separated tags to filter by. Optional.",
                     required = false)
-            String tags) {
+            String tags,
+            @ToolParam(description = "Which Grafana to use — REQUIRED, there is no default. Run "
+                    + "list_grafana_environments for the configured names; ask the user which "
+                    + "one they mean rather than guessing.")
+            String environment) {
         long fromMs = parseTimeMs(from);
         long toMs = parseTimeMs(to);
         List<String> tagList = parseTags(tags);
-        return this.client.listAnnotations(fromMs, toMs, dashboardUid, tagList);
+        return this.client.listAnnotations(this.environments.resolve(environment), fromMs, toMs,
+                dashboardUid, tagList);
     }
 
     @Tool(name = "create_annotation",
@@ -60,11 +68,16 @@ public class AnnotationTools {
             String dashboardUid,
             @ToolParam(description = "Comma-separated tags. Optional.",
                     required = false)
-            String tags) {
+            String tags,
+            @ToolParam(description = "Which Grafana to use — REQUIRED, there is no default. Run "
+                    + "list_grafana_environments for the configured names; ask the user which "
+                    + "one they mean rather than guessing.")
+            String environment) {
         long timeMs = parseTimeMs(time);
         long timeEndMs = timeEnd == null || timeEnd.isBlank() ? 0 : parseTimeMs(timeEnd);
         List<String> tagList = parseTags(tags);
-        return this.client.createAnnotation(dashboardUid, timeMs, timeEndMs, text, tagList);
+        return this.client.createAnnotation(this.environments.resolve(environment), dashboardUid,
+                timeMs, timeEndMs, text, tagList);
     }
 
     /**

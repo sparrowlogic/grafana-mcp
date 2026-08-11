@@ -257,6 +257,11 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>@{argLine}</argLine>
+                    <systemPropertyVariables>
+                        <!-- Environments are only ever read from this file, so the Spring context
+                             test needs one that is not the developer's real ~/.grafana-mcp-server. -->
+                        <grafana.mcp.config-file>${project.build.testOutputDirectory}/environments.json</grafana.mcp.config-file>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
 

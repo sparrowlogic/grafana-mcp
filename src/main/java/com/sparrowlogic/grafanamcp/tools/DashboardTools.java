@@ -1,7 +1,7 @@
 package com.sparrowlogic.grafanamcp.tools;
 
 import com.sparrowlogic.grafanamcp.client.GrafanaClient;
-import com.sparrowlogic.grafanamcp.config.GrafanaProperties;
+import com.sparrowlogic.grafanamcp.client.GrafanaEnvironments;
 import com.sparrowlogic.grafanamcp.domain.Dashboard;
 import java.util.List;
 import java.util.Map;
@@ -17,11 +17,11 @@ import tools.jackson.databind.JsonNode;
 public class DashboardTools {
 
     private final GrafanaClient client;
-    private final GrafanaProperties properties;
+    private final GrafanaEnvironments environments;
 
-    public DashboardTools(GrafanaClient client, GrafanaProperties properties) {
+    public DashboardTools(GrafanaClient client, GrafanaEnvironments environments) {
         this.client = client;
-        this.properties = properties;
+        this.environments = environments;
     }
 
     @Tool(name = "search_dashboards",
@@ -35,14 +35,20 @@ public class DashboardTools {
             String query,
             @ToolParam(description = "Max dashboards to return (default 50).",
                     required = false)
-            Integer limit) {
-        List<Dashboard> dashboards = this.client.searchDashboards(query, limit == null ? 0 : limit);
+            Integer limit,
+            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
+                    + "list_grafana_environments for the configured names; ask the user which "
+                    + "one they mean rather than guessing.")
+            String environment) {
+        GrafanaEnvironments.Target target = this.environments.resolve(environment);
+        List<Dashboard> dashboards = this.client.searchDashboards(target, query,
+                limit == null ? 0 : limit);
         return dashboards.stream()
                 .map(d -> Map.<String, Object>of(
                         "uid", d.uid(),
                         "title", d.title(),
                         "tags", d.tags(),
-                        "grafanaUrl", this.properties.baseUrl() + d.url()))
+                        "grafanaUrl", target.baseUrl() + d.url()))
                 .toList();
     }
 
@@ -53,9 +59,14 @@ public class DashboardTools {
                     + "first to find the UID.")
     public Map<String, Object> getDashboard(
             @ToolParam(description = "Dashboard UID (from search_dashboards).")
-            String uid) {
-        JsonNode dashboard = this.client.getDashboard(uid);
-        String url = this.properties.baseUrl() + "/d/" + uid;
+            String uid,
+            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
+                    + "list_grafana_environments for the configured names; ask the user which "
+                    + "one they mean rather than guessing.")
+            String environment) {
+        GrafanaEnvironments.Target target = this.environments.resolve(environment);
+        JsonNode dashboard = this.client.getDashboard(target, uid);
+        String url = target.baseUrl() + "/d/" + uid;
         return Map.of(
                 "dashboard", dashboard,
                 "grafanaUrl", url);

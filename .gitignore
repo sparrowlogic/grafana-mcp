@@ -9,6 +9,9 @@ target/
 .env.*
 !.env.example
 reference_repos/
+# Research notes verified against a specific Grafana estate: datasource UIDs, internal DNS,
+# versions, service inventory. Useful locally, not for a public remote.
+docs/tempo-traces-research.md
 
 ### STS ###
 .apt_generated

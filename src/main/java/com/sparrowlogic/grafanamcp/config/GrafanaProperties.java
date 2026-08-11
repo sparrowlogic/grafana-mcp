@@ -4,19 +4,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for the Grafana HTTP API client, bound from {@code grafana.*} properties.
- * Both {@code token} and {@code baseUrl} are required — the application will fail to start
- * if either GRAFANA_TOKEN or GRAFANA_URL is not set.
+ * Limits applied to the Grafana HTTP API client, bound from {@code grafana.*} properties.
  *
- * @param token           service account token sent as {@code Authorization: Bearer <token>}
- * @param baseUrl         Grafana instance base URL (required)
+ * <p>No Grafana instance is configured here. Which Grafanas this server can reach — their base URLs
+ * and tokens — comes solely from the user-editable file described by {@link EnvironmentStore}, and
+ * every tool names the one it wants. Credentials therefore never live in the shipped jar or in the
+ * launch environment, and adding an instance does not mean re-registering the MCP server.
+ *
  * @param defaultPageSize page size used when a tool does not specify a limit
  * @param maxPageSize     hard upper bound on the page size a tool may request
  */
 @ConfigurationProperties(prefix = "grafana")
 public record GrafanaProperties(
-        String token,
-        String baseUrl,
         @DefaultValue("50") int defaultPageSize,
         @DefaultValue("100") int maxPageSize) {
 }

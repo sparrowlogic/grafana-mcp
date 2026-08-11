@@ -1,3 +1,5 @@
+# No Grafana instance is configured here — environments come only from the file named by the
+# grafana.mcp.config-file system property, which surefire points at target/test-classes.
 grafana:
-  token: test-token
-  base-url: https://grafana.test
+  default-page-size: 50
+  max-page-size: 100

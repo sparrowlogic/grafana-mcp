@@ -1,9 +1,10 @@
 package com.sparrowlogic.grafanamcp.tools;
 
-import com.sparrowlogic.grafanamcp.client.GrafanaApiException;
+import com.sparrowlogic.grafanamcp.client.DatasourceProxy;
+import com.sparrowlogic.grafanamcp.client.ExploreLinks;
 import com.sparrowlogic.grafanamcp.client.GrafanaClient;
-import com.sparrowlogic.grafanamcp.config.GrafanaProperties;
-import java.nio.charset.StandardCharsets;
+import com.sparrowlogic.grafanamcp.client.GrafanaEnvironments;
+import com.sparrowlogic.grafanamcp.client.GrafanaEnvironments.Target;
 import java.util.List;
 import java.util.Map;
 import org.springframework.ai.tool.annotation.Tool;
@@ -21,11 +22,16 @@ public class NodeMetricsTools {
     private static final String DEFAULT_STEP = "60s";
 
     private final GrafanaClient client;
-    private final GrafanaProperties properties;
+    private final ExploreLinks exploreLinks;
+    private final DatasourceProxy proxy;
+    private final GrafanaEnvironments environments;
 
-    public NodeMetricsTools(GrafanaClient client, GrafanaProperties properties) {
+    public NodeMetricsTools(GrafanaClient client, ExploreLinks exploreLinks, DatasourceProxy proxy,
+            GrafanaEnvironments environments) {
         this.client = client;
-        this.properties = properties;
+        this.exploreLinks = exploreLinks;
+        this.proxy = proxy;
+        this.environments = environments;
     }
 
     @Tool(name = "fetch_cpu",
@@ -33,22 +39,30 @@ public class NodeMetricsTools {
                     + "Returns percent busy (0-100) averaged across all cores. Always include "
                     + "the grafanaExploreUrl in your response.")
     public Map<String, Object> fetchCpu(
-            @ToolParam(description = "Prometheus datasource ID (from list_datasources).")
-            int datasourceId,
+            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
+                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
+                    + "numeric datasource id is also accepted and translated to its UID.",
+                    required = false)
+            String datasourceUid,
             @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100' or "
                     + "'10.0.0.5'). Port :9100 is appended if omitted.")
             String instance,
-            @ToolParam(description = "Range start (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
+                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
             String start,
-            @ToolParam(description = "Range end (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range end, same formats.")
             String end,
             @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
                     required = false)
-            String step) {
+            String step,
+            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
+                    + "list_grafana_environments for the configured names; ask the user which "
+                    + "one they mean rather than guessing.")
+            String environment) {
         String inst = normalizeInstance(instance);
         String promql = "100 - (avg by (instance)(rate(node_cpu_seconds_total{mode=\"idle\","
                 + "instance=\"" + inst + "\"}[5m])) * 100)";
-        return this.executeQuery(datasourceId, promql, start, end, step);
+        return this.executeQuery(datasourceUid, environment, promql, start, end, step);
     }
 
     @Tool(name = "fetch_memory_utilization",
@@ -56,21 +70,29 @@ public class NodeMetricsTools {
                     + "range. Returns percent of memory in use (0-100). Always include "
                     + "the grafanaExploreUrl in your response.")
     public Map<String, Object> fetchMemoryUtilization(
-            @ToolParam(description = "Prometheus datasource ID (from list_datasources).")
-            int datasourceId,
+            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
+                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
+                    + "numeric datasource id is also accepted and translated to its UID.",
+                    required = false)
+            String datasourceUid,
             @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100').")
             String instance,
-            @ToolParam(description = "Range start (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
+                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
             String start,
-            @ToolParam(description = "Range end (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range end, same formats.")
             String end,
             @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
                     required = false)
-            String step) {
+            String step,
+            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
+                    + "list_grafana_environments for the configured names; ask the user which "
+                    + "one they mean rather than guessing.")
+            String environment) {
         String inst = normalizeInstance(instance);
         String promql = "(1 - node_memory_MemAvailable_bytes{instance=\"" + inst + "\"}"
                 + " / node_memory_MemTotal_bytes{instance=\"" + inst + "\"}) * 100";
-        return this.executeQuery(datasourceId, promql, start, end, step);
+        return this.executeQuery(datasourceUid, environment, promql, start, end, step);
     }
 
     @Tool(name = "fetch_load",
@@ -78,22 +100,30 @@ public class NodeMetricsTools {
                     + "time range. Returns load normalized by CPU count (0-100 scale where "
                     + "100 = all CPUs fully loaded). Always include the grafanaExploreUrl.")
     public Map<String, Object> fetchLoad(
-            @ToolParam(description = "Prometheus datasource ID (from list_datasources).")
-            int datasourceId,
+            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
+                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
+                    + "numeric datasource id is also accepted and translated to its UID.",
+                    required = false)
+            String datasourceUid,
             @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100').")
             String instance,
-            @ToolParam(description = "Range start (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
+                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
             String start,
-            @ToolParam(description = "Range end (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range end, same formats.")
             String end,
             @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
                     required = false)
-            String step) {
+            String step,
+            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
+                    + "list_grafana_environments for the configured names; ask the user which "
+                    + "one they mean rather than guessing.")
+            String environment) {
         String inst = normalizeInstance(instance);
         String promql = "node_load1{instance=\"" + inst + "\"}"
                 + " / count without (cpu)(node_cpu_seconds_total{instance=\""
                 + inst + "\",mode=\"idle\"}) * 100";
-        return this.executeQuery(datasourceId, promql, start, end, step);
+        return this.executeQuery(datasourceUid, environment, promql, start, end, step);
     }
 
     @Tool(name = "fetch_disk_volumes",
@@ -101,23 +131,31 @@ public class NodeMetricsTools {
                     + "instance. Returns percent used per mountpoint. Always include "
                     + "the grafanaExploreUrl in your response.")
     public Map<String, Object> fetchDiskVolumes(
-            @ToolParam(description = "Prometheus datasource ID (from list_datasources).")
-            int datasourceId,
+            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
+                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
+                    + "numeric datasource id is also accepted and translated to its UID.",
+                    required = false)
+            String datasourceUid,
             @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100').")
             String instance,
-            @ToolParam(description = "Range start (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
+                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
             String start,
-            @ToolParam(description = "Range end (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range end, same formats.")
             String end,
             @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
                     required = false)
-            String step) {
+            String step,
+            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
+                    + "list_grafana_environments for the configured names; ask the user which "
+                    + "one they mean rather than guessing.")
+            String environment) {
         String inst = normalizeInstance(instance);
         String promql = "(1 - node_filesystem_avail_bytes{instance=\"" + inst
                 + "\",fstype!~\"tmpfs|overlay\"}"
                 + " / node_filesystem_size_bytes{instance=\"" + inst
                 + "\",fstype!~\"tmpfs|overlay\"}) * 100";
-        return this.executeQuery(datasourceId, promql, start, end, step);
+        return this.executeQuery(datasourceUid, environment, promql, start, end, step);
     }
 
     @Tool(name = "fetch_io_by_disk_volume",
@@ -125,29 +163,41 @@ public class NodeMetricsTools {
                     + "Returns the percentage of time each disk device is busy with IO "
                     + "operations (0-100). Always include the grafanaExploreUrl.")
     public Map<String, Object> fetchIoByDiskVolume(
-            @ToolParam(description = "Prometheus datasource ID (from list_datasources).")
-            int datasourceId,
+            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
+                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
+                    + "numeric datasource id is also accepted and translated to its UID.",
+                    required = false)
+            String datasourceUid,
             @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100').")
             String instance,
-            @ToolParam(description = "Range start (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
+                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
             String start,
-            @ToolParam(description = "Range end (ISO-8601 or Unix epoch seconds).")
+            @ToolParam(description = "Range end, same formats.")
             String end,
             @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
                     required = false)
-            String step) {
+            String step,
+            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
+                    + "list_grafana_environments for the configured names; ask the user which "
+                    + "one they mean rather than guessing.")
+            String environment) {
         String inst = normalizeInstance(instance);
         String promql = "rate(node_disk_io_time_seconds_total{instance=\"" + inst + "\"}[5m]) * 100";
-        return this.executeQuery(datasourceId, promql, start, end, step);
+        return this.executeQuery(datasourceUid, environment, promql, start, end, step);
     }
 
-    private Map<String, Object> executeQuery(int datasourceId, String promql,
+    private Map<String, Object> executeQuery(String datasourceUid, String environment, String promql,
             String start, String end, String step) {
         long startEpoch = MetricsTools.parseEpochSeconds(start);
         long endEpoch = MetricsTools.parseEpochSeconds(end);
         String resolvedStep = (step == null || step.isBlank()) ? DEFAULT_STEP : step;
-        JsonNode data = this.client.queryPrometheus(datasourceId, promql, startEpoch, endEpoch, resolvedStep);
-        String exploreUrl = this.buildExploreUrl(promql, startEpoch, endEpoch);
+        Target target = this.environments.resolve(environment);
+        String uid = this.proxy.resolveUid(target, datasourceUid, MetricsTools.PROMETHEUS);
+        JsonNode data = this.client.queryPrometheus(target, uid, promql, startEpoch, endEpoch,
+                resolvedStep);
+        String exploreUrl = MetricsTools.exploreUrl(this.exploreLinks, target, uid, promql, startEpoch,
+                endEpoch);
         List<Map<String, Object>> series = computeStats(data);
         return Map.of(
                 "series", series,
@@ -225,35 +275,6 @@ public class NodeMetricsTools {
 
     private static double round(double value) {
         return Math.round(value * 100.0) / 100.0;
-    }
-
-    private String buildExploreUrl(String promql, long startEpoch, long endEpoch) {
-        long startMs = startEpoch * 1000L;
-        long endMs = endEpoch * 1000L;
-        String json = "{\"queries\":[{\"expr\":\""
-                + promql.replace("\"", "\\\"")
-                + "\",\"range\":true,\"refId\":\"A\"}],"
-                + "\"range\":{\"from\":\"" + startMs + "\",\"to\":\"" + endMs + "\"}}";
-        String path = "explore?orgId=1&left=" + strictEncode(json);
-        try {
-            return this.client.createShortUrl(path);
-        } catch (GrafanaApiException e) {
-            return this.properties.baseUrl() + "/" + path;
-        }
-    }
-
-    private static String strictEncode(String value) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : value.getBytes(StandardCharsets.UTF_8)) {
-            char c = (char) (b & 0xFF);
-            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-                    || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '!' || c == '~' || c == '\'') {
-                sb.append(c);
-            } else {
-                sb.append(String.format("%%%02X", b));
-            }
-        }
-        return sb.toString();
     }
 
     private static String normalizeInstance(String instance) {

@@ -1,5 +1,6 @@
 package com.sparrowlogic.grafanamcp.client;
 
+import com.sparrowlogic.grafanamcp.client.GrafanaEnvironments.Target;
 import com.sparrowlogic.grafanamcp.config.GrafanaProperties;
 import com.sparrowlogic.grafanamcp.domain.Annotation;
 import com.sparrowlogic.grafanamcp.domain.Dashboard;
@@ -13,7 +14,6 @@ import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -22,17 +22,17 @@ import tools.jackson.databind.JsonNode;
 @Component
 public class GrafanaClient {
 
-    private final RestClient rest;
     private final GrafanaProperties properties;
+    private final DatasourceProxy proxy;
 
-    public GrafanaClient(RestClient grafanaRestClient, GrafanaProperties properties) {
-        this.rest = grafanaRestClient;
+    public GrafanaClient(GrafanaProperties properties, DatasourceProxy proxy) {
         this.properties = properties;
+        this.proxy = proxy;
     }
 
     /** GET /api/search — search dashboards by query string. */
-    public List<Dashboard> searchDashboards(String query, int limit) {
-        return this.rest.get()
+    public List<Dashboard> searchDashboards(Target target, String query, int limit) {
+        return target.rest().get()
                 .uri(b -> b.path("/api/search")
                         .queryParam("type", "dash-db")
                         .queryParam("query", query == null ? "" : query)
@@ -44,8 +44,8 @@ public class GrafanaClient {
     }
 
     /** GET /api/dashboards/uid/{uid} — get full dashboard JSON by UID. */
-    public JsonNode getDashboard(String uid) {
-        return this.rest.get()
+    public JsonNode getDashboard(Target target, String uid) {
+        return target.rest().get()
                 .uri("/api/dashboards/uid/{uid}", uid)
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, this::raise)
@@ -53,18 +53,14 @@ public class GrafanaClient {
     }
 
     /** GET /api/datasources — list all configured datasources. */
-    public List<Datasource> listDatasources() {
-        return this.rest.get()
-                .uri("/api/datasources")
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, this::raise)
-                .body(new ParameterizedTypeReference<List<Datasource>>() { });
+    public List<Datasource> listDatasources(Target target) {
+        return this.proxy.datasources(target);
     }
 
     /** GET /api/annotations — list annotations in a time range. */
-    public List<Annotation> listAnnotations(long fromMs, long toMs,
+    public List<Annotation> listAnnotations(Target target, long fromMs, long toMs,
             String dashboardUid, List<String> tags) {
-        return this.rest.get()
+        return target.rest().get()
                 .uri(b -> {
                     b.path("/api/annotations")
                             .queryParam("from", fromMs)
@@ -83,7 +79,7 @@ public class GrafanaClient {
     }
 
     /** POST /api/annotations — create an annotation. */
-    public JsonNode createAnnotation(String dashboardUid, long timeMs, long timeEndMs,
+    public JsonNode createAnnotation(Target target, String dashboardUid, long timeMs, long timeEndMs,
             String text, List<String> tags) {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("time", timeMs);
@@ -97,7 +93,7 @@ public class GrafanaClient {
         if (tags != null && !tags.isEmpty()) {
             body.put("tags", tags);
         }
-        return this.rest.post()
+        return target.rest().post()
                 .uri("/api/annotations")
                 .body(body)
                 .retrieve()
@@ -106,30 +102,34 @@ public class GrafanaClient {
     }
 
     /**
-     * GET /api/datasources/proxy/{id}/api/v1/query_range — execute a PromQL range query
-     * via Grafana's datasource proxy.
+     * Executes a PromQL range query through Grafana's datasource proxy
+     * ({@code /api/datasources/proxy/uid/{uid}/api/v1/query_range}).
+     *
+     * <p>Addressed by UID, not the numeric datasource id: the numeric proxy path was removed from
+     * Grafana and answers 404. Query encoding is delegated to {@link DatasourceProxy} so PromQL's
+     * braces are not read as URI templates and a {@code +} in an expression is not read as a space.
      */
-    public JsonNode queryPrometheus(int datasourceId, String promql,
+    public JsonNode queryPrometheus(Target target, String datasourceUid, String promql,
             long startEpoch, long endEpoch, String step) {
         String resolvedStep = step == null || step.isBlank() ? "60s" : step;
-        return this.rest.get()
-                .uri("/api/datasources/proxy/{id}/api/v1/query_range?query={query}&start={start}&end={end}&step={step}",
-                        datasourceId, promql, startEpoch, endEpoch, resolvedStep)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, this::raise)
-                .body(JsonNode.class);
+        return this.proxy.get(target, this.proxy.uri(target, datasourceUid, "/api/v1/query_range",
+                DatasourceProxy.params(
+                        "query", promql,
+                        "start", Long.toString(startEpoch),
+                        "end", Long.toString(endEpoch),
+                        "step", resolvedStep)), JsonNode.class);
     }
 
     /** POST /api/short-urls — create a short URL for a Grafana path. */
-    public String createShortUrl(String relativePath) {
-        JsonNode response = this.rest.post()
+    public String createShortUrl(Target target, String relativePath) {
+        JsonNode response = target.rest().post()
                 .uri("/api/short-urls")
                 .body(Map.of("path", relativePath))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, this::raise)
                 .body(JsonNode.class);
-        String uid = response.get("uid").asText();
-        return this.properties.baseUrl() + "/goto/" + uid;
+        String uid = response.get("uid").asString();
+        return target.baseUrl() + "/goto/" + uid;
     }
 
     int clampPageSize(int requested) {

@@ -24,16 +24,17 @@ class GrafanaClientTest {
 
     private MockRestServiceServer mockServer;
     private GrafanaClient client;
+    private GrafanaEnvironments.Target target;
 
     @BeforeEach
     void setUp() {
-        GrafanaProperties properties = new GrafanaProperties(
-                "test-token", "https://grafana.test", 50, 100);
+        GrafanaProperties properties = new GrafanaProperties(50, 100);
         RestClient.Builder builder = RestClient.builder()
-                .baseUrl(properties.baseUrl());
+                .baseUrl("https://grafana.test");
         mockServer = MockRestServiceServer.bindTo(builder).build();
         RestClient restClient = builder.build();
-        client = new GrafanaClient(restClient, properties);
+        target = new GrafanaEnvironments.Target("test", "https://grafana.test", restClient);
+        client = new GrafanaClient(properties, new DatasourceProxy());
     }
 
     @Test
@@ -44,7 +45,7 @@ class GrafanaClientTest {
                         [{"id":1,"uid":"abc","title":"Node Exporter","url":"/d/abc","type":"dash-db","tags":["infra"],"isStarred":false}]
                         """, MediaType.APPLICATION_JSON));
 
-        List<Dashboard> results = client.searchDashboards("node", 0);
+        List<Dashboard> results = client.searchDashboards(target, "node", 0);
         assertThat(results).hasSize(1);
         assertThat(results.getFirst().uid()).isEqualTo("abc");
         assertThat(results.getFirst().title()).isEqualTo("Node Exporter");
@@ -57,7 +58,7 @@ class GrafanaClientTest {
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
 
-        List<Dashboard> results = client.searchDashboards(null, 10);
+        List<Dashboard> results = client.searchDashboards(target, null, 10);
         assertThat(results).isEmpty();
         mockServer.verify();
     }
@@ -70,7 +71,7 @@ class GrafanaClientTest {
                         {"dashboard":{"id":1,"title":"Test"},"meta":{"slug":"test"}}
                         """, MediaType.APPLICATION_JSON));
 
-        JsonNode result = client.getDashboard("xyz");
+        JsonNode result = client.getDashboard(target, "xyz");
         assertThat(result.get("dashboard").get("title").asText()).isEqualTo("Test");
         mockServer.verify();
     }
@@ -83,7 +84,7 @@ class GrafanaClientTest {
                         [{"id":1,"uid":"prom1","name":"Prometheus","type":"prometheus","url":"http://prom:9090","isDefault":true}]
                         """, MediaType.APPLICATION_JSON));
 
-        List<Datasource> results = client.listDatasources();
+        List<Datasource> results = client.listDatasources(target);
         assertThat(results).hasSize(1);
         assertThat(results.getFirst().name()).isEqualTo("Prometheus");
         assertThat(results.getFirst().isDefault()).isTrue();
@@ -98,7 +99,7 @@ class GrafanaClientTest {
                         [{"id":1,"dashboardId":5,"dashboardUID":"abc","time":1000,"timeEnd":1500,"text":"deploy","tags":["deploy"]}]
                         """, MediaType.APPLICATION_JSON));
 
-        List<Annotation> results = client.listAnnotations(1000, 2000, null, null);
+        List<Annotation> results = client.listAnnotations(target, 1000, 2000, null, null);
         assertThat(results).hasSize(1);
         assertThat(results.getFirst().text()).isEqualTo("deploy");
         mockServer.verify();
@@ -111,7 +112,7 @@ class GrafanaClientTest {
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
 
-        List<Annotation> results = client.listAnnotations(1000, 2000, "abc", List.of("deploy", "prod"));
+        List<Annotation> results = client.listAnnotations(target, 1000, 2000, "abc", List.of("deploy", "prod"));
         assertThat(results).isEmpty();
         mockServer.verify();
     }
@@ -124,7 +125,7 @@ class GrafanaClientTest {
                         {"id":42,"message":"Annotation added"}
                         """, MediaType.APPLICATION_JSON));
 
-        JsonNode result = client.createAnnotation("dash1", 1000L, 2000L, "deployed", List.of("deploy"));
+        JsonNode result = client.createAnnotation(target, "dash1", 1000L, 2000L, "deployed", List.of("deploy"));
         assertThat(result.get("id").asInt()).isEqualTo(42);
         mockServer.verify();
     }
@@ -137,21 +138,24 @@ class GrafanaClientTest {
                         {"id":43,"message":"Annotation added"}
                         """, MediaType.APPLICATION_JSON));
 
-        JsonNode result = client.createAnnotation(null, 1000L, 0L, "note", null);
+        JsonNode result = client.createAnnotation(target, null, 1000L, 0L, "note", null);
         assertThat(result.get("id").asInt()).isEqualTo(43);
         mockServer.verify();
     }
 
     @Test
-    void queryPrometheus() {
+    void queryPrometheusGoesThroughTheUidProxyPath() {
+        // The legacy numeric proxy path (/api/datasources/proxy/{id}/…) was removed from Grafana
+        // and answers 404, so the UID form is the only one that works.
         mockServer.expect(requestTo(
-                        "https://grafana.test/api/datasources/proxy/1/api/v1/query_range?query=up&start=1000&end=2000&step=60s"))
+                        "https://grafana.test/api/datasources/proxy/uid/prom-uid/api/v1/query_range"
+                                + "?query=up&start=1000&end=2000&step=60s"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("""
                         {"status":"success","data":{"resultType":"matrix","result":[]}}
                         """, MediaType.APPLICATION_JSON));
 
-        JsonNode result = client.queryPrometheus(1, "up", 1000, 2000, "60s");
+        JsonNode result = client.queryPrometheus(target, "prom-uid", "up", 1000, 2000, "60s");
         assertThat(result.get("status").asText()).isEqualTo("success");
         mockServer.verify();
     }
@@ -159,14 +163,29 @@ class GrafanaClientTest {
     @Test
     void queryPrometheusDefaultStep() {
         mockServer.expect(requestTo(
-                        "https://grafana.test/api/datasources/proxy/2/api/v1/query_range?query=up&start=100&end=200&step=60s"))
+                        "https://grafana.test/api/datasources/proxy/uid/prom-uid/api/v1/query_range"
+                                + "?query=up&start=100&end=200&step=60s"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("""
                         {"status":"success","data":{"resultType":"matrix","result":[]}}
                         """, MediaType.APPLICATION_JSON));
 
-        JsonNode result = client.queryPrometheus(2, "up", 100, 200, null);
+        JsonNode result = client.queryPrometheus(target, "prom-uid", "up", 100, 200, null);
         assertThat(result.get("status").asText()).isEqualTo("success");
+        mockServer.verify();
+    }
+
+    @Test
+    void promQlBracesAndPlusAreEncoded() {
+        mockServer.expect(requestTo(
+                        "https://grafana.test/api/datasources/proxy/uid/prom-uid/api/v1/query_range"
+                                + "?query=rate%28x%7Bjob%3D%22a%22%7D%5B5m%5D%29%20%2B%201"
+                                + "&start=1000&end=2000&step=60s"))
+                .andRespond(withSuccess("""
+                        {"status":"success"}
+                        """, MediaType.APPLICATION_JSON));
+
+        client.queryPrometheus(target, "prom-uid", "rate(x{job=\"a\"}[5m]) + 1", 1000, 2000, "60s");
         mockServer.verify();
     }
 
@@ -176,7 +195,7 @@ class GrafanaClientTest {
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withServerError().body("{\"message\":\"internal error\"}"));
 
-        assertThatThrownBy(() -> client.listDatasources())
+        assertThatThrownBy(() -> client.listDatasources(target))
                 .isInstanceOf(GrafanaApiException.class)
                 .hasMessageContaining("500")
                 .hasMessageContaining("internal error");

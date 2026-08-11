@@ -2,41 +2,37 @@ package com.sparrowlogic.grafanamcp.config;
 
 import com.sparrowlogic.grafanamcp.tools.AnnotationTools;
 import com.sparrowlogic.grafanamcp.tools.DashboardTools;
+import com.sparrowlogic.grafanamcp.tools.EnvironmentTools;
+import com.sparrowlogic.grafanamcp.tools.LokiTools;
 import com.sparrowlogic.grafanamcp.tools.MetricsTools;
 import com.sparrowlogic.grafanamcp.tools.NodeMetricsTools;
+import com.sparrowlogic.grafanamcp.tools.TempoTools;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.web.client.RestClient;
 
 /**
- * Wires the {@link RestClient} used to talk to the Grafana HTTP API, pre-configured
- * with the base URL and auth header every request requires.
+ * Binds the configuration properties and registers the MCP tools.
+ *
+ * <p>HTTP clients are not created here: there is one per configured Grafana environment, built by
+ * {@code GrafanaEnvironments}, because each carries its own base URL and token.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(GrafanaProperties.class)
+@EnableConfigurationProperties({GrafanaProperties.class, PrometheusProperties.class,
+                                LokiProperties.class, TempoProperties.class})
 public class GrafanaClientConfig {
-
-    @Bean
-    RestClient grafanaRestClient(GrafanaProperties properties) {
-        return RestClient.builder()
-                .baseUrl(properties.baseUrl())
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.token())
-                .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .build();
-    }
 
     @Bean
     ToolCallbackProvider grafanaToolCallbackProvider(DashboardTools dashboardTools,
             AnnotationTools annotationTools, MetricsTools metricsTools,
-            NodeMetricsTools nodeMetricsTools) {
+            NodeMetricsTools nodeMetricsTools, LokiTools lokiTools, TempoTools tempoTools,
+            EnvironmentTools environmentTools) {
+        // Hand-maintained allowlist: a @Component absent from here registers zero tools, silently.
         return MethodToolCallbackProvider.builder()
-                .toolObjects(dashboardTools, annotationTools, metricsTools, nodeMetricsTools)
+                .toolObjects(dashboardTools, annotationTools, metricsTools, nodeMetricsTools,
+                        lokiTools, tempoTools, environmentTools)
                 .build();
     }
 }

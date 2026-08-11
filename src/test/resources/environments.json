@@ -1,0 +1,5 @@
+{
+  "environments": {
+    "test": { "baseUrl": "https://grafana.test", "token": "test-token" }
+  }
+}

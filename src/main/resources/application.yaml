@@ -13,16 +13,110 @@ spring:
         name: grafana-mcp
         version: '@project.version@'
         instructions: >-
-          Access Grafana dashboards, annotations, and Prometheus metrics.
-          Use list_datasources to find the Prometheus datasource ID, then
-          query_prometheus to fetch node_exporter time-series data for CPU,
-          memory, and IO utilization analysis within a time range.
+          Access Grafana dashboards, annotations, Prometheus metrics, Loki logs, and Tempo
+          traces — across more than one Grafana. Every tool that reaches Grafana REQUIRES an
+          'environment' argument naming which instance to use, and there is no default: call
+          list_grafana_environments first to learn the names, and ask the user which one they
+          mean if the request does not say and more than one exists. The exceptions are the
+          two cache readers, fetch_loki_page and get_loki_entry, which take a searchId that
+          already belongs to one environment and REJECT an 'environment' argument. Cached log
+          searches and traces are scoped per environment.
+          Datasources are addressed by UID and the right one is discovered by type, so
+          query_prometheus and the fetch_* metric tools need no datasource argument
+          unless several Prometheus datasources exist (list_datasources shows them).
+          query_prometheus fetches node_exporter time-series data for CPU, memory, and
+          IO utilization analysis within a time range.
+          For logs, Loki returns very large result sets, so search is
+          count-first-then-fetch-once-then-paginate: count_loki_logs(query, from, until,
+          groupBy) locates the interesting service/interval cheaply, then
+          search_loki_logs(query, from, until) fetches the matching lines once, caches
+          them, and returns a 'searchId' plus the first page of COMPACT entries with the
+          stream labels held in a per-page 'streams' legend. Page through with
+          fetch_loki_page(searchId, page) and pull one line's full text and labels with
+          get_loki_entry(searchId, entryId) — only search_loki_logs and count_loki_logs
+          hit Loki. If a search result is 'capped', it covers only part of the requested
+          window (see 'notice'/'coveredFrom') — narrow the LogQL query or window. Use
+          list_loki_labels and list_loki_label_values to discover selectors. Time bounds
+          accept relative spans (-1h, -30m, -7d), 'now', dates, ISO-8601 instants, or
+          Unix epoch seconds.
+          For traces, Tempo is queried with TraceQL and get_trace ANALYSES a trace rather
+          than dumping its spans: the critical path (the chain that actually determined the
+          duration, so a span that ran parallel to a slower sibling is correctly absent),
+          exclusive self-time per service, the spans where failures ORIGINATED as opposed to
+          ancestors that propagated them, the service call graph, and a ready-made log search
+          for the same window. Entry points: a trace id goes to get_trace; a symptom plus a
+          time goes to search_traces with a TraceQL duration/status filter; a service name
+          alone goes to list_trace_attribute_values on resource.service.name first. Span
+          detail is get_trace_spans, which reads the cached parse and costs no Tempo request
+          because a trace is immutable. TraceQL attributes need a scope prefix
+          (resource.service.name, span.http.route); list_trace_attributes shows what exists.
+          Note that metrics-to-traces via exemplars is unavailable on this deployment (none
+          are stored) and logs carry trace ids for only some services, so trace-to-log
+          correlation is usually service-plus-window — get_trace's logSearch says which.
 
 grafana:
-  token: ${GRAFANA_TOKEN}
-  base-url: ${GRAFANA_URL}
+  # No Grafana instance is configured here, deliberately. Base URLs and tokens live only in the
+  # user-editable file (~/.grafana-mcp-server/config.json, or $GRAFANA_MCP_CONFIG) — so credentials
+  # stay out of the shipped jar and out of the launch environment, and adding an instance is an edit
+  # to a file rather than a re-registration of the MCP server. There is no default environment
+  # either: every tool call names the Grafana it wants. list_grafana_environments describes both.
   default-page-size: 50
   max-page-size: 100
+  prometheus:
+    # Datasource UID to query; blank discovers the first datasource of type "prometheus".
+    datasource-uid: ${GRAFANA_PROMETHEUS_DATASOURCE_UID:}
+    # A range query costs series x points. `up` over ten minutes on a busy install is 748
+    # series and ~330k characters of JSON, so both dimensions are capped and samples are
+    # omitted unless the caller asks for detail='points'.
+    max-series: 25
+    max-points-per-series: 60
+  tempo:
+    # Datasource UID to query; blank discovers the first datasource of type "tempo".
+    datasource-uid: ${GRAFANA_TEMPO_DATASOURCE_UID:}
+    # Traces returned by a search, before drilling into one.
+    default-limit: 20
+    max-limit: 100
+    # Spans shown per search hit (Tempo's `spss`) — the matching spans, not the whole trace.
+    spans-per-hit: 3
+    # get_trace summarises by default; these bound the opt-in span listing and the
+    # critical-path/self-time tables in the summary. Spans carry their whole attribute set, so
+    # a listing is chatty — hence a modest default well under the hard cap.
+    default-spans-detail: 25
+    max-spans-detail: 150
+    max-critical-path-steps: 15
+    max-services-listed: 25
+    # Span attribute values are truncated at this length in a span listing.
+    attribute-max-chars: 200
+    # A trace is immutable once written, so a parsed trace can be cached for a good while.
+    cache-ttl-minutes: 30
+    # Padding applied either side of a trace's window when suggesting a log search, because
+    # log ingestion lags span timestamps (observed: a line 27s after the event it describes).
+    log-window-padding-seconds: 30
+  loki:
+    # Datasource UID to query. Left blank, the first datasource of type "loki" is
+    # discovered from /api/datasources and remembered for the process lifetime.
+    datasource-uid: ${GRAFANA_LOKI_DATASOURCE_UID:}
+    # Lines pulled into one cached snapshot. Loki can match tens of thousands of lines in
+    # an hour, so this is the hard ceiling on how much a single search will hold; a search
+    # that hits it reports capped=true along with the window it actually covers.
+    max-fetch: 2000
+    # Lines requested per underlying Loki query_range call while walking the window.
+    # Loki refuses a limit above max_entries_limit_per_query (5000 by default).
+    page-limit: 1000
+    # MCP page sizes — kept modest so a page of compact entries stays under the response
+    # token ceiling. (2000 lines in one response would re-blow the limit, so max-page-size
+    # is deliberately NOT the fetch cap.)
+    default-page-size: 25
+    max-page-size: 200
+    # Compact-entry log line truncation; full text remains available via get_loki_entry.
+    line-max-chars: 400
+    # Windows ending older than this are immutable, so their snapshots are reusable.
+    stable-window-minutes: 5
+    # Snapshot cache TTLs: immutable windows are worth holding, live ones are not.
+    stable-ttl-minutes: 30
+    live-ttl-minutes: 2
+    # Series kept by count_loki_logs (highest total first) before reporting truncation.
+    max-volume-series: 25
 
 logging:
   level:

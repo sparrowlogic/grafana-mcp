@@ -43,65 +43,41 @@ public class MetricsTools {
     }
 
     @Tool(name = "list_datasources",
-            description = "List all configured Grafana datasources. Returns each datasource's uid, "
-                    + "id, name, type, and whether it is the default. Datasources are addressed by "
-                    + "UID; the metric and log tools discover the right one by type, so this is "
-                    + "mainly for seeing what exists or picking between several of the same type.")
+            description = "List configured Grafana datasources with uid, id, name, type and whether "
+                    + "each is the default. The metric and log tools discover the right one by "
+                    + "type, so this is mainly for seeing what exists or choosing between several "
+                    + "of one type.")
     public List<Datasource> listDatasources(
-            @ToolParam(description = "Which Grafana to use — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         return this.client.listDatasources(this.environments.resolve(environment));
     }
 
     @Tool(name = "query_prometheus",
-            description = "Execute a PromQL range query via Grafana's datasource proxy. Returns a "
-                    + "SUMMARY of each matching series (point count, min/avg/max/last, first and last "
-                    + "sample time) plus a Grafana Explore link — not the raw time series, which for "
-                    + "a broad query is hundreds of series and hundreds of thousands of characters. "
-                    + "Pass detail='points' when you actually need the samples; they are bucketed "
-                    + "down, keeping each bucket's peak, so spikes survive.\n\n"
-                    + "Series are ranked by peak value and capped. If 'seriesTruncated' is true, "
-                    + "aggregate in PromQL (e.g. 'sum by (instance) (...)') rather than trying to "
-                    + "page through them; read 'notice' for what was bounded.\n\n"
-                    + "Example PromQL queries:\n"
-                    + "- CPU usage: 100 - (avg by (instance)"
-                    + "(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)\n"
-                    + "- Memory usage: (1 - node_memory_MemAvailable_bytes / "
-                    + "node_memory_MemTotal_bytes) * 100\n"
-                    + "- Disk IO utilization: rate(node_disk_io_time_seconds_total[5m]) * 100\n"
-                    + "- Network receive: rate(node_network_receive_bytes_total[5m])\n"
-                    + "- Service dependencies from traces: sum by (client, server) "
-                    + "(rate(traces_service_graph_request_total[5m]))\n"
-                    + "- Span latency by service: histogram_quantile(0.95, sum by (service, le) "
-                    + "(rate(traces_spanmetrics_latency_bucket[5m])))\n\n"
-                    + "Times accept relative spans (-30m, -6h), 'now', dates, ISO-8601 instants, or "
-                    + "Unix epoch seconds.\n\n"
-                    + "IMPORTANT: Always include the returned grafanaExploreUrl in your response "
-                    + "so the user can view the query in Grafana.")
+            description = "Run a PromQL range query. Returns a SUMMARY per series (point count, "
+                    + "min/avg/max/last, first and last sample time) plus a Grafana Explore link "
+                    + "— not raw samples, which run to hundreds of thousands of characters. "
+                    + "detail='points' adds samples, bucketed down so spikes survive.\n\nSeries "
+                    + "are ranked by peak and capped; if 'seriesTruncated' is true, aggregate in "
+                    + "PromQL (sum by (instance) (...)) rather than paging. Include the returned "
+                    + "grafanaExploreUrl in your response.")
     public MetricQueryResult queryPrometheus(
-            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
-                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
-                    + "numeric datasource id is also accepted and translated to its UID.",
+            @ToolParam(description = "Prometheus datasource UID. Optional; discovered automatically. A legacy "
+                    + "numeric id also works.",
                     required = false)
             String datasourceUid,
             @ToolParam(description = "PromQL query expression.")
             String query,
-            @ToolParam(description = "Range start: a relative span (-30m, -6h, -7d), 'now', a date "
-                    + "(2026-06-01), an ISO-8601 instant, or Unix epoch seconds.")
+            @ToolParam(description = "Range start: relative (-6h), 'now', a date, ISO-8601, or epoch seconds.")
             String start,
             @ToolParam(description = "Range end, same formats.")
             String end,
-            @ToolParam(description = "Query resolution step (e.g. '60s', '5m'). Default: 60s.",
+            @ToolParam(description = "Resolution step, e.g. '60s'. Default 60s.",
                     required = false)
             String step,
-            @ToolParam(description = "'summary' (default) for statistics only, or 'points' to also "
-                    + "return the samples.", required = false)
+            @ToolParam(description = "'summary' (default) for statistics only, or 'points' to include samples.", required = false)
             String detail,
-            @ToolParam(description = "Which Grafana to use — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         long startEpoch = parseEpochSeconds(start);
         long endEpoch = parseEpochSeconds(end);

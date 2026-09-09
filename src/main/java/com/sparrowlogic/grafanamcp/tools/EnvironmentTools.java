@@ -36,21 +36,16 @@ public class EnvironmentTools {
     }
 
     @Tool(name = "list_grafana_environments",
-            description = "List the Grafana instances this server can query — their names and base "
-                    + "URLs. Every tool that reaches Grafana REQUIRES an 'environment' argument "
-                    + "naming one of them and there is no default, so call this first: before the "
-                    + "first Grafana tool call of a conversation, whenever the user mentions a "
-                    + "specific instance (local, staging, a home lab), and whenever a call fails "
-                    + "saying the environment is unknown. (fetch_loki_page and get_loki_entry are "
-                    + "the exceptions — they read a cached snapshot whose searchId already belongs "
-                    + "to one environment, and reject an 'environment' argument.)\n\n"
-                    + "This is also the answer to \"how do I add an environment?\": the response "
-                    + "carries the path of the editable JSON config file, whether it exists, and the "
-                    + "exact shape to write. Adding an environment means writing that file — there is "
-                    + "no tool that takes a token, deliberately, because a token passed as a tool "
-                    + "argument would be recorded in the conversation. A newly added environment is "
-                    + "picked up on the next call; no restart is needed. Tokens are never returned by "
-                    + "this tool.")
+            description = "List the Grafana instances this server can query — names and base URLs. "
+                    + "Every tool that reaches Grafana needs an 'environment' naming one of them "
+                    + "and there is no default, so call this first, and again whenever a call "
+                    + "reports an unknown environment. fetch_loki_page and get_loki_entry are the "
+                    + "exceptions: their searchId already belongs to one environment, so they "
+                    + "reject the argument.\n\nAlso answers 'how do I add an environment?': the "
+                    + "response gives the editable JSON config file's path and shape. Adding one "
+                    + "means writing that file — no tool takes a token, deliberately, since a "
+                    + "token passed as an argument would be recorded in the conversation. New "
+                    + "entries are picked up on the next call. Tokens are never returned.")
     public Map<String, Object> listGrafanaEnvironments() {
         List<Map<String, Object>> configured = new ArrayList<>();
         for (GrafanaEnvironments.Info info : this.environments.describe()) {

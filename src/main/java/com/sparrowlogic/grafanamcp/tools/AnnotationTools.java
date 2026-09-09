@@ -26,23 +26,20 @@ public class AnnotationTools {
     }
 
     @Tool(name = "list_annotations",
-            description = "List Grafana annotations within a time range. Optionally filter "
-                    + "by dashboard UID or tags. Times accept ISO-8601 (e.g. "
-                    + "2026-06-25T00:00:00Z) or epoch milliseconds.")
+            description = "List Grafana annotations in a time range, optionally filtered by dashboard "
+                    + "UID or tags.")
     public List<Annotation> listAnnotations(
             @ToolParam(description = "Start of time range (ISO-8601 or epoch ms).")
             String from,
             @ToolParam(description = "End of time range (ISO-8601 or epoch ms).")
             String to,
-            @ToolParam(description = "Dashboard UID to filter by. Optional.",
+            @ToolParam(description = "Dashboard UID to filter by.",
                     required = false)
             String dashboardUid,
-            @ToolParam(description = "Comma-separated tags to filter by. Optional.",
+            @ToolParam(description = "Comma-separated tags.",
                     required = false)
             String tags,
-            @ToolParam(description = "Which Grafana to use — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         long fromMs = parseTimeMs(from);
         long toMs = parseTimeMs(to);
@@ -52,26 +49,22 @@ public class AnnotationTools {
     }
 
     @Tool(name = "create_annotation",
-            description = "Create a Grafana annotation. Can be a point-in-time event or a "
-                    + "time range (if timeEnd is provided). Useful for marking deploys, "
-                    + "incidents, or other events on dashboards.")
+            description = "Create a Grafana annotation — a point in time, or a range if timeEnd is "
+                    + "given. Useful for marking deploys and incidents on dashboards.")
     public JsonNode createAnnotation(
-            @ToolParam(description = "Annotation text/description.")
+            @ToolParam(description = "Annotation text.")
             String text,
             @ToolParam(description = "Start time (ISO-8601 or epoch ms).")
             String time,
-            @ToolParam(description = "End time for range annotation (ISO-8601 or epoch ms). "
-                    + "Optional; omit for point-in-time.", required = false)
+            @ToolParam(description = "End time for a range annotation; omit for point-in-time.", required = false)
             String timeEnd,
-            @ToolParam(description = "Dashboard UID to attach to. Optional.",
+            @ToolParam(description = "Dashboard UID to attach to.",
                     required = false)
             String dashboardUid,
-            @ToolParam(description = "Comma-separated tags. Optional.",
+            @ToolParam(description = "Comma-separated tags.",
                     required = false)
             String tags,
-            @ToolParam(description = "Which Grafana to use — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         long timeMs = parseTimeMs(time);
         long timeEndMs = timeEnd == null || timeEnd.isBlank() ? 0 : parseTimeMs(timeEnd);

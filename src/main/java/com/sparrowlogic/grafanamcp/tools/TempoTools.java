@@ -60,39 +60,31 @@ public class TempoTools {
     }
 
     @Tool(name = "search_traces",
-            description = "Find traces with a TraceQL query. Returns one compact line per hit "
-                    + "(traceId, root service and span, start, duration, which spans matched) — never "
-                    + "whole traces. Follow up with get_trace(traceId) for the analysis of one.\n\n"
-                    + "TraceQL: a filter in braces. Attributes need a scope prefix — 'resource.' for "
-                    + "service/host attributes, 'span.' for span attributes; duration and status are "
-                    + "intrinsic. Examples:\n"
-                    + "- { resource.service.name = \"checkout-api\" }\n"
-                    + "- { status = error }\n"
-                    + "- { duration > 2s }\n"
-                    + "- { span.http.response.status_code >= 500 }\n"
-                    + "- { resource.service.name = \"web\" && duration > 500ms }\n"
-                    + "- { name =~ \"POST /api/.*\" }\n\n"
-                    + "Use list_trace_attributes / list_trace_attribute_values to discover what "
-                    + "exists rather than guessing attribute names. Times accept relative spans "
-                    + "(-30m, -6h), 'now', dates, ISO-8601 instants, or epoch seconds; defaults are "
-                    + "from=-1h, until=now. Always include the grafanaExploreUrl in your response.")
+            description = "Find traces with TraceQL. Returns one compact line per hit (traceId, root "
+                    + "service and span, start, duration, matched spans) — never whole traces; "
+                    + "follow up with get_trace for one.\n\nTraceQL is a filter in braces, and "
+                    + "attributes need a scope prefix ('resource.' for service/host, 'span.' for "
+                    + "span; duration and status are intrinsic): { resource.service.name = "
+                    + "\"web\" && duration > 500ms }, { span.http.response.status_code >= 500 }, "
+                    + "{ name =~ \"POST /api/.*\" }. Use list_trace_attributes / "
+                    + "list_trace_attribute_values rather than guessing names. Include the "
+                    + "grafanaExploreUrl.")
     public TraceSearchResult searchTraces(
-            @ToolParam(description = "TraceQL query, e.g. '{ resource.service.name = \"web\" && "
-                    + "duration > 2s }'. A bare '{}' matches everything.")
+            @ToolParam(description = "TraceQL query, e.g. '{ resource.service.name = \"web\" && duration > 2s "
+                    + "}'. A bare '{}' matches everything.")
             String query,
-            @ToolParam(description = "Window start. Optional; defaults to -1h.", required = false)
+            @ToolParam(description = "Window start: relative (-1h), 'now', a date, ISO-8601, or epoch seconds. "
+                    + "Default -1h.", required = false)
             String from,
-            @ToolParam(description = "Window end. Optional; defaults to 'now'.", required = false)
+            @ToolParam(description = "Window end, same formats. Default 'now'.", required = false)
             String until,
-            @ToolParam(description = "Maximum traces to return (default 20, max 100).",
+            @ToolParam(description = "Max traces to return. Default 20, max 100.",
                     required = false)
             Integer limit,
             @ToolParam(description = "Tempo datasource UID. Optional; discovered automatically.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String traceql = requireQuery(query);
         Target target = this.environments.resolve(environment);
@@ -106,32 +98,28 @@ public class TempoTools {
     }
 
     @Tool(name = "get_trace",
-            description = "Analyse one trace by id. Returns a SUMMARY, not the spans: the critical "
-                    + "path (the chain of spans that actually determined the duration — a span that "
-                    + "ran in parallel with a slower sibling is correctly absent, which a sort by "
-                    + "duration would get wrong), exclusive self-time per service, the spans where "
-                    + "failures ORIGINATED as opposed to ancestors that merely propagated the status, "
-                    + "the service call graph, and a ready-made log search for the same window.\n\n"
-                    + "Use get_trace_spans(traceId, …) afterwards for span detail — it reads a cached "
-                    + "parse and costs no Tempo request.\n\n"
-                    + "Pass 'from'/'until' around the trace's time when you know it: Tempo only "
-                    + "searches the blocks covering that window, so a trace outside it returns empty "
-                    + "rather than an error. Defaults to the last 6 hours. Always include the "
-                    + "grafanaExploreUrl in your response.")
+            description = "Analyse one trace by id. Returns a summary, not spans: the critical path "
+                    + "(the chain that actually determined the duration, so a span parallel to a "
+                    + "slower sibling is correctly absent), exclusive self-time per service, the "
+                    + "spans where failures ORIGINATED rather than ancestors that propagated "
+                    + "them, the service call graph, and a ready-made log search for the "
+                    + "window.\n\nUse get_trace_spans afterwards for span detail — it reads the "
+                    + "cached parse at no Tempo cost. Pass 'from'/'until' around the trace's time "
+                    + "when known: Tempo searches only the blocks covering that window, so a "
+                    + "trace outside it returns empty rather than an error. Include the "
+                    + "grafanaExploreUrl.")
     public TraceSummary getTrace(
-            @ToolParam(description = "Trace id (hex). Leading zeros may be absent — pass it as given.")
+            @ToolParam(description = "Trace id (hex). Pass it as given; leading zeros may be absent.")
             String traceId,
-            @ToolParam(description = "Window start to search for the trace. Optional; defaults to -6h.",
+            @ToolParam(description = "Window start to search for the trace. Default -6h.",
                     required = false)
             String from,
-            @ToolParam(description = "Window end. Optional; defaults to 'now'.", required = false)
+            @ToolParam(description = "Window end, same formats. Default 'now'.", required = false)
             String until,
             @ToolParam(description = "Tempo datasource UID. Optional; discovered automatically.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String id = requireTraceId(traceId);
         Target target = this.environments.resolve(environment);
@@ -148,27 +136,25 @@ public class TempoTools {
     }
 
     @Tool(name = "get_trace_spans",
-            description = "List individual spans of a trace already fetched by get_trace, filtered "
-                    + "and bounded. Reads the cached parse — no Tempo request. Filter by service, by "
-                    + "minimum duration, or to failed spans only; that is how you go from 'the "
-                    + "critical path says the database client was slow' to the actual statement. If "
-                    + "the trace is not cached, call get_trace first.")
+            description = "List individual spans of a trace already fetched by get_trace, filtered by "
+                    + "service, minimum duration or failures only — how you get from 'the "
+                    + "critical path says the database client was slow' to the actual statement. "
+                    + "Reads the cached parse, so no Tempo request. If the trace is not cached, "
+                    + "call get_trace first.")
     public TraceSpanListing getTraceSpans(
             @ToolParam(description = "Trace id previously passed to get_trace.")
             String traceId,
-            @ToolParam(description = "Only spans from this service. Optional.", required = false)
+            @ToolParam(description = "Only spans from this service.", required = false)
             String service,
-            @ToolParam(description = "Only spans at least this many milliseconds long. Optional.",
+            @ToolParam(description = "Only spans at least this many milliseconds long.",
                     required = false)
             Double minDurationMs,
-            @ToolParam(description = "Only spans carrying an error status. Optional.", required = false)
+            @ToolParam(description = "Only spans carrying an error status.", required = false)
             Boolean failedOnly,
-            @ToolParam(description = "Maximum spans to return (default 25, max 150). Optional.",
+            @ToolParam(description = "Max spans to return. Default 25, max 150.",
                     required = false)
             Integer limit,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String id = requireTraceId(traceId);
         Target target = this.environments.resolve(environment);
@@ -194,25 +180,22 @@ public class TempoTools {
     }
 
     @Tool(name = "list_trace_attributes",
-            description = "List the trace attribute names Tempo knows about, grouped by scope "
-                    + "(resource, span, intrinsic, event, link). The starting point for writing "
-                    + "TraceQL — attribute names need their scope prefix, e.g. "
-                    + "'resource.service.name' or 'span.http.route'. Times follow search_traces "
-                    + "syntax.")
+            description = "Trace attribute names Tempo knows, grouped by scope (resource, span, "
+                    + "intrinsic, event, link). TraceQL needs the scope prefix, e.g. "
+                    + "'resource.service.name' or 'span.http.route'.")
     public JsonNode listTraceAttributes(
-            @ToolParam(description = "Restrict to one scope: 'resource', 'span', 'intrinsic', "
-                    + "'event', 'link' or 'instrumentation'. Optional.", required = false)
+            @ToolParam(description = "Restrict to 'resource', 'span', 'intrinsic', 'event', 'link' or "
+                    + "'instrumentation'.", required = false)
             String scope,
-            @ToolParam(description = "Window start. Optional; defaults to -1h.", required = false)
+            @ToolParam(description = "Window start: relative (-1h), 'now', a date, ISO-8601, or epoch seconds. "
+                    + "Default -1h.", required = false)
             String from,
-            @ToolParam(description = "Window end. Optional; defaults to 'now'.", required = false)
+            @ToolParam(description = "Window end, same formats. Default 'now'.", required = false)
             String until,
             @ToolParam(description = "Tempo datasource UID. Optional; discovered automatically.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         Target target = this.environments.resolve(environment);
         String uid = this.client.resolveDatasourceUid(target, datasourceUid);
@@ -221,23 +204,21 @@ public class TempoTools {
     }
 
     @Tool(name = "list_trace_attribute_values",
-            description = "List the values of one trace attribute — e.g. every service sending "
-                    + "traces ('resource.service.name'), or every HTTP route seen "
-                    + "('span.http.route'). Cheap compared with a search; use it to build a precise "
-                    + "TraceQL filter. Times follow search_traces syntax.")
+            description = "Values of one trace attribute, e.g. every service sending traces "
+                    + "('resource.service.name') or every HTTP route ('span.http.route'). Cheap "
+                    + "next to a search — use it to build a precise TraceQL filter.")
     public JsonNode listTraceAttributeValues(
             @ToolParam(description = "Attribute name including scope, e.g. 'resource.service.name'.")
             String attribute,
-            @ToolParam(description = "Window start. Optional; defaults to -1h.", required = false)
+            @ToolParam(description = "Window start: relative (-1h), 'now', a date, ISO-8601, or epoch seconds. "
+                    + "Default -1h.", required = false)
             String from,
-            @ToolParam(description = "Window end. Optional; defaults to 'now'.", required = false)
+            @ToolParam(description = "Window end, same formats. Default 'now'.", required = false)
             String until,
             @ToolParam(description = "Tempo datasource UID. Optional; discovered automatically.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         if (attribute == null || attribute.isBlank()) {
             throw new IllegalArgumentException("An attribute name is required, e.g. "
@@ -252,33 +233,27 @@ public class TempoTools {
 
     @Tool(name = "query_trace_metrics",
             description = "Run a TraceQL metrics query — aggregate over spans instead of listing "
-                    + "traces. Answers 'how often' and 'how slow' across a window without fetching "
-                    + "traces at all.\n\n"
-                    + "Examples:\n"
-                    + "- { resource.service.name = \"web\" } | rate()\n"
-                    + "- { status = error } | count_over_time() by (resource.service.name)\n"
-                    + "- { resource.service.name = \"web\" } | quantile_over_time(duration, .95)\n"
-                    + "- { } | histogram_over_time(duration) by (resource.service.name)\n\n"
-                    + "Series are ranked by total and capped. For span metrics precomputed by "
-                    + "Tempo's metrics-generator (traces_spanmetrics_*, traces_service_graph_*), use "
-                    + "query_prometheus instead — those live in Prometheus.")
+                    + "traces, answering 'how often' and 'how slow' without fetching any. E.g. '{ "
+                    + "status = error } | count_over_time() by (resource.service.name)' or '{ "
+                    + "resource.service.name = \"web\" } | quantile_over_time(duration, .95)'. "
+                    + "Series are ranked by total and capped. Tempo's precomputed "
+                    + "traces_spanmetrics_* / traces_service_graph_* live in Prometheus — use "
+                    + "query_prometheus for those.")
     public TraceMetricsResult queryTraceMetrics(
-            @ToolParam(description = "TraceQL metrics query, e.g. '{ status = error } | "
-                    + "count_over_time() by (resource.service.name)'.")
+            @ToolParam(description = "TraceQL metrics query, e.g. '{ status = error } | count_over_time() by "
+                    + "(resource.service.name)'.")
             String query,
-            @ToolParam(description = "Window start. Optional; defaults to -1h.", required = false)
+            @ToolParam(description = "Window start: relative (-1h), 'now', a date, ISO-8601, or epoch seconds. "
+                    + "Default -1h.", required = false)
             String from,
-            @ToolParam(description = "Window end. Optional; defaults to 'now'.", required = false)
+            @ToolParam(description = "Window end, same formats. Default 'now'.", required = false)
             String until,
-            @ToolParam(description = "Step, e.g. '5m'. Optional; defaults to a sixtieth of the "
-                    + "window.", required = false)
+            @ToolParam(description = "Step, e.g. '5m'. Default a sixtieth of the window.", required = false)
             String step,
             @ToolParam(description = "Tempo datasource UID. Optional; discovered automatically.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String traceql = requireQuery(query);
         Target target = this.environments.resolve(environment);

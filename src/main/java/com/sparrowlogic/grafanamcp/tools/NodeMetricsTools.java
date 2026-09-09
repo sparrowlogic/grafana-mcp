@@ -35,29 +35,24 @@ public class NodeMetricsTools {
     }
 
     @Tool(name = "fetch_cpu",
-            description = "Fetch CPU utilization percentage for an instance over a time range. "
-                    + "Returns percent busy (0-100) averaged across all cores. Always include "
-                    + "the grafanaExploreUrl in your response.")
+            description = "CPU utilization for an instance over a range: percent busy (0-100) "
+                    + "averaged across cores. Include the grafanaExploreUrl.")
     public Map<String, Object> fetchCpu(
-            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
-                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
-                    + "numeric datasource id is also accepted and translated to its UID.",
+            @ToolParam(description = "Datasource UID. Optional; discovered by type. A legacy numeric id also "
+                    + "works.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100' or "
-                    + "'10.0.0.5'). Port :9100 is appended if omitted.")
+            @ToolParam(description = "Instance identifier, e.g. '10.0.0.5:9100'. Port :9100 is appended if "
+                    + "omitted.")
             String instance,
-            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
-                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
+            @ToolParam(description = "Range start: relative (-6h), 'now', a date, ISO-8601, or epoch seconds.")
             String start,
             @ToolParam(description = "Range end, same formats.")
             String end,
-            @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
+            @ToolParam(description = "Resolution step, e.g. '60s'. Default 60s.",
                     required = false)
             String step,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String inst = normalizeInstance(instance);
         String promql = "100 - (avg by (instance)(rate(node_cpu_seconds_total{mode=\"idle\","
@@ -66,28 +61,23 @@ public class NodeMetricsTools {
     }
 
     @Tool(name = "fetch_memory_utilization",
-            description = "Fetch memory utilization percentage for an instance over a time "
-                    + "range. Returns percent of memory in use (0-100). Always include "
-                    + "the grafanaExploreUrl in your response.")
+            description = "Memory utilization for an instance over a range: percent in use (0-100). "
+                    + "Include the grafanaExploreUrl.")
     public Map<String, Object> fetchMemoryUtilization(
-            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
-                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
-                    + "numeric datasource id is also accepted and translated to its UID.",
+            @ToolParam(description = "Datasource UID. Optional; discovered by type. A legacy numeric id also "
+                    + "works.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100').")
+            @ToolParam(description = "Instance identifier, e.g. '10.0.0.5:9100'.")
             String instance,
-            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
-                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
+            @ToolParam(description = "Range start: relative (-6h), 'now', a date, ISO-8601, or epoch seconds.")
             String start,
             @ToolParam(description = "Range end, same formats.")
             String end,
-            @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
+            @ToolParam(description = "Resolution step, e.g. '60s'. Default 60s.",
                     required = false)
             String step,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String inst = normalizeInstance(instance);
         String promql = "(1 - node_memory_MemAvailable_bytes{instance=\"" + inst + "\"}"
@@ -96,28 +86,23 @@ public class NodeMetricsTools {
     }
 
     @Tool(name = "fetch_load",
-            description = "Fetch system load averages (1m, 5m, 15m) for an instance over a "
-                    + "time range. Returns load normalized by CPU count (0-100 scale where "
-                    + "100 = all CPUs fully loaded). Always include the grafanaExploreUrl.")
+            description = "System load averages (1m, 5m, 15m) for an instance, normalized by CPU "
+                    + "count (100 = all CPUs fully loaded). Include the grafanaExploreUrl.")
     public Map<String, Object> fetchLoad(
-            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
-                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
-                    + "numeric datasource id is also accepted and translated to its UID.",
+            @ToolParam(description = "Datasource UID. Optional; discovered by type. A legacy numeric id also "
+                    + "works.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100').")
+            @ToolParam(description = "Instance identifier, e.g. '10.0.0.5:9100'.")
             String instance,
-            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
-                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
+            @ToolParam(description = "Range start: relative (-6h), 'now', a date, ISO-8601, or epoch seconds.")
             String start,
             @ToolParam(description = "Range end, same formats.")
             String end,
-            @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
+            @ToolParam(description = "Resolution step, e.g. '60s'. Default 60s.",
                     required = false)
             String step,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String inst = normalizeInstance(instance);
         String promql = "node_load1{instance=\"" + inst + "\"}"
@@ -127,28 +112,23 @@ public class NodeMetricsTools {
     }
 
     @Tool(name = "fetch_disk_volumes",
-            description = "Fetch disk space utilization for all mounted volumes on an "
-                    + "instance. Returns percent used per mountpoint. Always include "
-                    + "the grafanaExploreUrl in your response.")
+            description = "Disk space utilization per mounted volume on an instance: percent used per "
+                    + "mountpoint. Include the grafanaExploreUrl.")
     public Map<String, Object> fetchDiskVolumes(
-            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
-                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
-                    + "numeric datasource id is also accepted and translated to its UID.",
+            @ToolParam(description = "Datasource UID. Optional; discovered by type. A legacy numeric id also "
+                    + "works.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100').")
+            @ToolParam(description = "Instance identifier, e.g. '10.0.0.5:9100'.")
             String instance,
-            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
-                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
+            @ToolParam(description = "Range start: relative (-6h), 'now', a date, ISO-8601, or epoch seconds.")
             String start,
             @ToolParam(description = "Range end, same formats.")
             String end,
-            @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
+            @ToolParam(description = "Resolution step, e.g. '60s'. Default 60s.",
                     required = false)
             String step,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String inst = normalizeInstance(instance);
         String promql = "(1 - node_filesystem_avail_bytes{instance=\"" + inst
@@ -159,28 +139,23 @@ public class NodeMetricsTools {
     }
 
     @Tool(name = "fetch_io_by_disk_volume",
-            description = "Fetch disk IO utilization percentage per device on an instance. "
-                    + "Returns the percentage of time each disk device is busy with IO "
-                    + "operations (0-100). Always include the grafanaExploreUrl.")
+            description = "Disk IO utilization per device on an instance: percent of time each device "
+                    + "is busy with IO (0-100). Include the grafanaExploreUrl.")
     public Map<String, Object> fetchIoByDiskVolume(
-            @ToolParam(description = "Prometheus datasource UID (from list_datasources). "
-                    + "Optional — the Prometheus datasource is discovered automatically. A legacy "
-                    + "numeric datasource id is also accepted and translated to its UID.",
+            @ToolParam(description = "Datasource UID. Optional; discovered by type. A legacy numeric id also "
+                    + "works.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Instance identifier (e.g. '10.0.0.5:9100').")
+            @ToolParam(description = "Instance identifier, e.g. '10.0.0.5:9100'.")
             String instance,
-            @ToolParam(description = "Range start: a relative span (-30m, -6h), 'now', a "
-                    + "date, an ISO-8601 instant, or Unix epoch seconds.")
+            @ToolParam(description = "Range start: relative (-6h), 'now', a date, ISO-8601, or epoch seconds.")
             String start,
             @ToolParam(description = "Range end, same formats.")
             String end,
-            @ToolParam(description = "Step (e.g. '60s', '5m'). Default: 60s.",
+            @ToolParam(description = "Resolution step, e.g. '60s'. Default 60s.",
                     required = false)
             String step,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String inst = normalizeInstance(instance);
         String promql = "rate(node_disk_io_time_seconds_total{instance=\"" + inst + "\"}[5m]) * 100";

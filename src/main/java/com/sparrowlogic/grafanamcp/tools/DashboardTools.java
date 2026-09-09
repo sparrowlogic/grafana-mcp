@@ -25,20 +25,15 @@ public class DashboardTools {
     }
 
     @Tool(name = "search_dashboards",
-            description = "Search Grafana dashboards by title or tag. Returns a list of "
-                    + "matching dashboards with their uid (needed for get_dashboard), title, "
-                    + "grafanaUrl (full link to view in browser), and tags. Always include "
-                    + "grafanaUrl in your response so users can click through to Grafana.")
+            description = "Search dashboards by title or tag. Returns uid (for get_dashboard), title, "
+                    + "grafanaUrl and tags. Include grafanaUrl in your response.")
     public List<Map<String, Object>> searchDashboards(
-            @ToolParam(description = "Search query string (matches title). "
-                    + "Use empty string to list all.", required = false)
+            @ToolParam(description = "Search string matching the title. Empty string lists all.", required = false)
             String query,
-            @ToolParam(description = "Max dashboards to return (default 50).",
+            @ToolParam(description = "Max dashboards to return. Default 50.",
                     required = false)
             Integer limit,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         GrafanaEnvironments.Target target = this.environments.resolve(environment);
         List<Dashboard> dashboards = this.client.searchDashboards(target, query,
@@ -53,16 +48,12 @@ public class DashboardTools {
     }
 
     @Tool(name = "get_dashboard",
-            description = "Get the full dashboard JSON by UID. Returns the complete "
-                    + "dashboard model including panels, queries, variables, and a "
-                    + "grafanaUrl link to view it in the browser. Use search_dashboards "
-                    + "first to find the UID.")
+            description = "Full dashboard JSON by UID — panels, queries, variables — plus a "
+                    + "grafanaUrl. Use search_dashboards to find the UID.")
     public Map<String, Object> getDashboard(
-            @ToolParam(description = "Dashboard UID (from search_dashboards).")
+            @ToolParam(description = "Dashboard UID, from search_dashboards.")
             String uid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         GrafanaEnvironments.Target target = this.environments.resolve(environment);
         JsonNode dashboard = this.client.getDashboard(target, uid);

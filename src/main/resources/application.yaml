@@ -13,47 +13,30 @@ spring:
         name: grafana-mcp
         version: '@project.version@'
         instructions: >-
-          Access Grafana dashboards, annotations, Prometheus metrics, Loki logs, and Tempo
-          traces — across more than one Grafana. Every tool that reaches Grafana REQUIRES an
-          'environment' argument naming which instance to use, and there is no default: call
-          list_grafana_environments first to learn the names, and ask the user which one they
-          mean if the request does not say and more than one exists. The exceptions are the
-          two cache readers, fetch_loki_page and get_loki_entry, which take a searchId that
-          already belongs to one environment and REJECT an 'environment' argument. Cached log
-          searches and traces are scoped per environment.
-          Datasources are addressed by UID and the right one is discovered by type, so
-          query_prometheus and the fetch_* metric tools need no datasource argument
-          unless several Prometheus datasources exist (list_datasources shows them).
-          query_prometheus fetches node_exporter time-series data for CPU, memory, and
-          IO utilization analysis within a time range.
-          For logs, Loki returns very large result sets, so search is
-          count-first-then-fetch-once-then-paginate: count_loki_logs(query, from, until,
-          groupBy) locates the interesting service/interval cheaply, then
-          search_loki_logs(query, from, until) fetches the matching lines once, caches
-          them, and returns a 'searchId' plus the first page of COMPACT entries with the
-          stream labels held in a per-page 'streams' legend. Page through with
-          fetch_loki_page(searchId, page) and pull one line's full text and labels with
-          get_loki_entry(searchId, entryId) — only search_loki_logs and count_loki_logs
-          hit Loki. If a search result is 'capped', it covers only part of the requested
-          window (see 'notice'/'coveredFrom') — narrow the LogQL query or window. Use
-          list_loki_labels and list_loki_label_values to discover selectors. Time bounds
-          accept relative spans (-1h, -30m, -7d), 'now', dates, ISO-8601 instants, or
-          Unix epoch seconds.
-          For traces, Tempo is queried with TraceQL and get_trace ANALYSES a trace rather
-          than dumping its spans: the critical path (the chain that actually determined the
-          duration, so a span that ran parallel to a slower sibling is correctly absent),
-          exclusive self-time per service, the spans where failures ORIGINATED as opposed to
-          ancestors that propagated them, the service call graph, and a ready-made log search
-          for the same window. Entry points: a trace id goes to get_trace; a symptom plus a
-          time goes to search_traces with a TraceQL duration/status filter; a service name
-          alone goes to list_trace_attribute_values on resource.service.name first. Span
-          detail is get_trace_spans, which reads the cached parse and costs no Tempo request
-          because a trace is immutable. TraceQL attributes need a scope prefix
-          (resource.service.name, span.http.route); list_trace_attributes shows what exists.
-          Note that metrics-to-traces via exemplars is unavailable on this deployment (none
-          are stored) and logs carry trace ids for only some services, so trace-to-log
-          correlation is usually service-plus-window — get_trace's logSearch says which.
+          Access Grafana dashboards, annotations, Prometheus metrics, Loki logs and Tempo traces
+          across more than one Grafana. Every tool that reaches Grafana needs an 'environment'
+          naming which instance to use, and there is no default: call list_grafana_environments
+          first, and ask the user which they mean if more than one exists. The exceptions are the
+          cache readers fetch_loki_page and get_loki_entry, whose searchId already belongs to one
+          environment. Datasources are found by type, so no datasource argument is needed unless
+          several of one type exist.
 
+          Logs: Loki returns very large result sets, so search is count-first, fetch-once, then
+          paginate. count_loki_logs locates the interesting service or interval cheaply;
+          search_loki_logs then fetches the lines once, caches them and returns a 'searchId' plus a
+          first page of compact entries with a 'streams' label legend. Page with fetch_loki_page and
+          expand one line with get_loki_entry — only search_loki_logs and count_loki_logs hit Loki.
+          A 'capped' result covers only part of the window (see 'notice'/'coveredFrom'), so narrow
+          the query or window. list_loki_labels and list_loki_label_values discover selectors.
+
+          Traces: Tempo is queried with TraceQL, and get_trace ANALYSES a trace rather than dumping
+          spans — critical path, exclusive self-time per service, where failures originated, the
+          call graph, and a matching log search. A trace id goes to get_trace; a symptom plus a time
+          goes to search_traces; a service name alone goes to list_trace_attribute_values on
+          resource.service.name first. Span detail is get_trace_spans, which reads the cached parse
+          for free. TraceQL attributes need a scope prefix. Exemplars are not stored here and only
+          some services log trace ids, so trace-to-log correlation is usually service-plus-window —
+          get_trace's logSearch says which.
 grafana:
   # No Grafana instance is configured here, deliberately. Base URLs and tokens live only in the
   # user-editable file (~/.grafana-mcp-server/config.json, or $GRAFANA_MCP_CONFIG) — so credentials

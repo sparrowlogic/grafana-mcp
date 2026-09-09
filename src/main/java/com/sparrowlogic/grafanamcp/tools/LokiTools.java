@@ -66,44 +66,33 @@ public class LokiTools {
     }
 
     @Tool(name = "search_loki_logs",
-            description = "Search logs in Loki with a LogQL query. Fetches the matching lines ONCE, "
-                    + "caches them under a returned 'searchId', and returns the first page as COMPACT "
-                    + "entries (id, time, stream key, truncated line). Page through with "
-                    + "fetch_loki_page(searchId, page) and get one entry's full line and labels with "
-                    + "get_loki_entry(searchId, entryId) — neither re-queries Loki.\n\n"
-                    + "'streams' in the response is the label legend: each entry's 'stream' value "
-                    + "(s0, s1, …) resolves to a label set there, so labels are not repeated per line.\n\n"
-                    + "LogQL: start with a stream selector, then add filters — "
-                    + "'{environment=\"production\"} |= \"ERROR\"', "
-                    + "'{service_name=\"api\", level=\"ERROR\"} != \"healthcheck\"', "
-                    + "'{project=~\"web-.+\"} |~ \"timeout|refused\"'. A selector is REQUIRED and at "
-                    + "least one label matcher must be present. Use list_loki_labels and "
-                    + "list_loki_label_values to discover what exists.\n\n"
-                    + "Times accept relative spans (-1h, -30m, -7d), 'now', ISO-8601, a date "
-                    + "(2026-06-01), or Unix epoch seconds. Defaults: from=-1h, until=now.\n\n"
-                    + "If 'capped' is true the snapshot holds only part of the window — read "
-                    + "'notice', 'coveredFrom' and 'coveredUntil', then narrow the query with line "
-                    + "filters or use count_loki_logs to find the interval worth reading. Always "
-                    + "include the returned grafanaExploreUrl in your response.")
+            description = "Search Loki with LogQL. Fetches matching lines ONCE, caches them under a "
+                    + "returned 'searchId', and returns the first page as compact entries (id, "
+                    + "time, stream key, truncated line). Page with fetch_loki_page and expand "
+                    + "one line with get_loki_entry — neither re-queries Loki. 'streams' is the "
+                    + "label legend that each entry's 'stream' value resolves to.\n\nA stream "
+                    + "selector with at least one label matcher is required: "
+                    + "'{service_name=\"api\", level=\"ERROR\"} != \"healthcheck\"'. Use "
+                    + "list_loki_labels / list_loki_label_values to discover what exists.\n\nIf "
+                    + "'capped' is true the snapshot covers only part of the window — read "
+                    + "'notice'/'coveredFrom', then narrow the query or use count_loki_logs to "
+                    + "find the interval worth reading. Include the grafanaExploreUrl.")
     public LokiSearchResult searchLokiLogs(
             @ToolParam(description = "LogQL query, e.g. '{environment=\"production\"} |= \"ERROR\"'.")
             String query,
-            @ToolParam(description = "Window start. Optional; defaults to -1h. "
-                    + "e.g. -30m, -6h, 2026-06-01, or an ISO-8601 instant.", required = false)
+            @ToolParam(description = "Window start: relative (-1h), 'now', a date, ISO-8601, or epoch seconds. "
+                    + "Default -1h.", required = false)
             String from,
-            @ToolParam(description = "Window end. Optional; defaults to 'now'.", required = false)
+            @ToolParam(description = "Window end, same formats. Default 'now'.", required = false)
             String until,
-            @ToolParam(description = "'backward' (newest first, default) or 'forward' (oldest first). "
-                    + "Use 'forward' to find the FIRST occurrence in a window.", required = false)
+            @ToolParam(description = "'backward' (newest first, default) or 'forward' to find the first "
+                    + "occurrence.", required = false)
             String direction,
-            @ToolParam(description = "Entries per page (default 25, max 200).", required = false)
+            @ToolParam(description = "Entries per page. Default 25, max 200.", required = false)
             Integer pageSize,
-            @ToolParam(description = "Loki datasource UID. Optional; the Loki datasource is "
-                    + "discovered automatically.", required = false)
+            @ToolParam(description = "Loki datasource UID. Optional; discovered automatically.", required = false)
             String datasourceUid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String logql = requireQuery(query);
         Target target = this.environments.resolve(environment);
@@ -114,17 +103,17 @@ public class LokiTools {
     }
 
     @Tool(name = "fetch_loki_page",
-            description = "Return another page from a cached Loki search snapshot created by "
-                    + "search_loki_logs. Does NOT re-query Loki. Use the 'searchId' and 'nextPage' "
-                    + "from a prior result; 'hasMore' says whether further pages exist. Snapshots "
-                    + "expire after a few minutes — if the searchId is unknown, run search_loki_logs "
-                    + "again.")
+            description = "Return another page from the cached Loki snapshot created by "
+                    + "search_loki_logs; does NOT re-query Loki. Use the 'searchId' and "
+                    + "'nextPage' from a prior result, with 'hasMore' saying whether more exist. "
+                    + "Snapshots expire after a few minutes — if the searchId is unknown, run "
+                    + "search_loki_logs again.")
     public LokiSearchResult fetchLokiPage(
             @ToolParam(description = "The searchId returned by search_loki_logs.")
             String searchId,
-            @ToolParam(description = "Zero-based page index to return.")
+            @ToolParam(description = "Zero-based page index.")
             Integer page,
-            @ToolParam(description = "Entries per page (default 25, max 200). Optional.",
+            @ToolParam(description = "Entries per page. Default 25, max 200.",
                     required = false)
             Integer pageSize) {
         CachedLokiSearch snapshot = this.cache.get(searchId);
@@ -132,14 +121,14 @@ public class LokiTools {
     }
 
     @Tool(name = "get_loki_entry",
-            description = "Return one log entry's COMPLETE line plus the full label set of its "
-                    + "stream, from a cached search snapshot. Reads the cache; does not re-query "
-                    + "Loki. Use after search_loki_logs/fetch_loki_page to drill into an entry whose "
+            description = "Return one log entry's complete line plus its stream's full label set, "
+                    + "from a cached search snapshot. Reads the cache; does not re-query Loki. "
+                    + "Use after search_loki_logs or fetch_loki_page to expand an entry whose "
                     + "compact line was truncated.")
     public LogEntryDetail getLokiEntry(
             @ToolParam(description = "The searchId returned by search_loki_logs.")
             String searchId,
-            @ToolParam(description = "The entry id (the 'id' field of a compact entry, e.g. 'e12').")
+            @ToolParam(description = "Entry id — the 'id' of a compact entry, e.g. 'e12'.")
             String entryId) {
         CachedLokiSearch snapshot = this.cache.get(searchId);
         LogEntry entry = snapshot.entries().stream()
@@ -155,21 +144,18 @@ public class LokiTools {
     }
 
     @Tool(name = "list_loki_labels",
-            description = "List the label names present in Loki for a time window — the starting "
-                    + "point for building a LogQL stream selector. Follow up with "
-                    + "list_loki_label_values to see a label's values. Times follow the same syntax "
-                    + "as search_loki_logs (defaults: from=-1h, until=now).")
+            description = "Label names present in Loki for a window — the starting point for a LogQL "
+                    + "stream selector. Follow up with list_loki_label_values.")
     public List<String> listLokiLabels(
-            @ToolParam(description = "Window start. Optional; defaults to -1h.", required = false)
+            @ToolParam(description = "Window start: relative (-1h), 'now', a date, ISO-8601, or epoch seconds. "
+                    + "Default -1h.", required = false)
             String from,
-            @ToolParam(description = "Window end. Optional; defaults to 'now'.", required = false)
+            @ToolParam(description = "Window end, same formats. Default 'now'.", required = false)
             String until,
             @ToolParam(description = "Loki datasource UID. Optional; discovered automatically.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         Target target = this.environments.resolve(environment);
         String uid = this.client.resolveDatasourceUid(target, datasourceUid);
@@ -178,26 +164,24 @@ public class LokiTools {
     }
 
     @Tool(name = "list_loki_label_values",
-            description = "List the values of one Loki label in a time window, e.g. every "
-                    + "'service_name' or 'environment' being logged. Optionally restrict to streams "
-                    + "matching a selector. Cheap compared with a log search — use it to build a "
-                    + "precise selector before searching. Times follow search_loki_logs syntax.")
+            description = "Values of one Loki label in a window, e.g. every 'service_name' being "
+                    + "logged, optionally restricted to a stream selector. Cheap next to a log "
+                    + "search — use it to build a precise selector first.")
     public List<String> listLokiLabelValues(
-            @ToolParam(description = "Label name, e.g. 'service_name' or 'level'.")
+            @ToolParam(description = "Label name, e.g. 'service_name'.")
             String label,
-            @ToolParam(description = "Optional stream selector to restrict the values, "
-                    + "e.g. '{environment=\"production\"}'.", required = false)
+            @ToolParam(description = "Stream selector restricting the values, e.g. "
+                    + "'{environment=\"production\"}'.", required = false)
             String selector,
-            @ToolParam(description = "Window start. Optional; defaults to -1h.", required = false)
+            @ToolParam(description = "Window start: relative (-1h), 'now', a date, ISO-8601, or epoch seconds. "
+                    + "Default -1h.", required = false)
             String from,
-            @ToolParam(description = "Window end. Optional; defaults to 'now'.", required = false)
+            @ToolParam(description = "Window end, same formats. Default 'now'.", required = false)
             String until,
             @ToolParam(description = "Loki datasource UID. Optional; discovered automatically.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         if (label == null || !label.trim().matches(LABEL_NAME_PATTERN)) {
             throw new IllegalArgumentException("'" + label + "' is not a valid Loki label name.");
@@ -212,38 +196,32 @@ public class LokiTools {
     @Tool(name = "count_loki_logs",
             description = "Count matching log lines per time bucket instead of returning them — the "
                     + "cheap way to find WHERE and WHEN to look before spending tokens on lines. "
-                    + "Give it the same kind of LogQL log query as search_loki_logs (a stream "
-                    + "selector plus optional line filters; NOT a metric expression) and it wraps it "
-                    + "in count_over_time.\n\n"
-                    + "Group with 'groupBy' to compare sources, e.g. groupBy='service_name' with "
-                    + "query='{environment=\"production\"} |= \"ERROR\"' shows which service is "
-                    + "producing the errors. Series are sorted by descending total and truncated, so "
-                    + "prefer low-cardinality labels. Response gives per-series totals plus "
-                    + "[epochSeconds, count] buckets; a series with empty labels ({}) is the streams "
-                    + "that do not carry the grouped label at all. Always include the "
-                    + "grafanaExploreUrl.")
+                    + "Takes the same LogQL log query as search_loki_logs (selector plus filters, "
+                    + "not a metric expression) and wraps it in count_over_time.\n\n'groupBy' "
+                    + "compares sources, e.g. groupBy='service_name' shows which service produces "
+                    + "the errors; series are sorted by total and truncated, so prefer "
+                    + "low-cardinality labels. Empty labels ({}) are the streams lacking that "
+                    + "label. Include the grafanaExploreUrl.")
     public LogVolumeResult countLokiLogs(
-            @ToolParam(description = "LogQL log query to count, e.g. "
-                    + "'{environment=\"production\"} |= \"ERROR\"'.")
+            @ToolParam(description = "LogQL log query to count, e.g. '{environment=\"production\"} |= "
+                    + "\"ERROR\"'.")
             String query,
-            @ToolParam(description = "Window start. Optional; defaults to -1h.", required = false)
+            @ToolParam(description = "Window start: relative (-1h), 'now', a date, ISO-8601, or epoch seconds. "
+                    + "Default -1h.", required = false)
             String from,
-            @ToolParam(description = "Window end. Optional; defaults to 'now'.", required = false)
+            @ToolParam(description = "Window end, same formats. Default 'now'.", required = false)
             String until,
-            @ToolParam(description = "Bucket width, e.g. '5m' or '300'. Optional; defaults to about "
-                    + "a sixtieth of the window, and is widened if it would produce too many buckets.",
+            @ToolParam(description = "Bucket width, e.g. '5m'. Default about a sixtieth of the window; widened "
+                    + "if it would make too many buckets.",
                     required = false)
             String step,
-            @ToolParam(description = "Comma-separated label names to group by, e.g. "
-                    + "'service_name' or 'service_name,level'. Optional; omit for a single total.",
+            @ToolParam(description = "Comma-separated label names to group by. Omit for a single total.",
                     required = false)
             String groupBy,
             @ToolParam(description = "Loki datasource UID. Optional; discovered automatically.",
                     required = false)
             String datasourceUid,
-            @ToolParam(description = "Which Grafana to query — REQUIRED, there is no default. Run "
-                    + "list_grafana_environments for the configured names; ask the user which "
-                    + "one they mean rather than guessing.")
+            @ToolParam(description = "Which Grafana. Required; see list_grafana_environments.")
             String environment) {
         String selector = requireLogSelector(query);
         Target target = this.environments.resolve(environment);

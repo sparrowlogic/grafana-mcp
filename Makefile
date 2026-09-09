@@ -30,12 +30,18 @@ jar: ## build the self-executing fat jar
 	@echo "✓ $(EXEC_JAR)  ($$(du -h $(EXEC_JAR) | cut -f1))"
 
 .PHONY: install
-install: ## copy the executable jar into $(INSTALL_DIR)
-	@test -f $(EXEC_JAR) || (echo "✗ $(EXEC_JAR) not found — run 'make jar' first" >&2; exit 1)
+install: jar ## build, then atomically install the executable jar into $(INSTALL_DIR)
 	@mkdir -p $(INSTALL_DIR)
-	cp $(EXEC_JAR) $(INSTALLED_BINARY)
-	chmod +x $(INSTALLED_BINARY)
+# Copy to a sibling and rename rather than cp'ing straight over the destination.
+# A plain cp rewrites that inode in place, so an MCP server still running off the
+# old jar starts failing with a bare NoClassDefFoundError on every class the JVM
+# had not yet loaded, while already-loaded ones keep working. rename(2) gives the
+# new jar its own inode and leaves a running process safely on the old one.
+	cp $(EXEC_JAR) $(INSTALLED_BINARY).new
+	chmod +x $(INSTALLED_BINARY).new
+	mv -f $(INSTALLED_BINARY).new $(INSTALLED_BINARY)
 	@echo "✓ installed: $(INSTALLED_BINARY)"
+	@echo "  Restart your MCP client to load it; a running server keeps the old jar."
 
 .PHONY: register
 register: ## register the installed jar with Claude Code (user scope)

@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Spring Boot parent, Spring AI and Spring Framework move together; split PRs
+      # would each fail against the others' old versions.
+      spring:
+        patterns:
+          - "org.springframework*"
+        update-types: [minor, patch]
+      maven-minor-and-patch:
+        patterns: ["*"]
+        exclude-patterns:
+          - "org.springframework*"
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
